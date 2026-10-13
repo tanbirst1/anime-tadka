@@ -1,0 +1,53 @@
+{
+    "title": "{site_name} - Watch Anime Online Free",
+    "intro": [
+        "Like Death Note, do you have an Anime Note filled with all the titles you'd love to see, but the only missing piece is a free anime site that is free and safe? Take out the note, as you've found that site, here, at {site_name}! Welcome to our anime haven, where all your anime dreams come true, at no cost to you and with utmost safety."
+    ],
+    "sections": [
+        {
+            "heading": "{site_name} - Where Love for Anime Blooms",
+            "type": "section",
+            "paragraphs": [
+                "{site_name} is where you can watch anime for free without ads, immersing yourself in the universe of your favorite shows uninterrupted. What can be better than hours of anime without any lag, and no buffering? A seamless stream of anime goodness awaits you at {site_name}."
+            ]
+        },
+        {
+            "heading": "Thousands of Titles, All for Free",
+            "type": "section",
+            "paragraphs": [
+                "Is {site_name} free? Absolutely! Dozens of thousands of anime titles from classics like Neon Genesis Evangelion to the latest hits are waiting ahead. No strings attached, no sign-up, no hidden fees - all you'll find here is pure anime bliss."
+            ]
+        },
+        {
+            "heading": "But, Safety First!",
+            "type": "section",
+            "paragraphs": [
+                "Is {site_name} safe? You bet! We've got your safety covered. Our platform operates within the legal boundaries, allowing you to enjoy your anime adventure worry-free."
+            ]
+        },
+        {
+            "heading": "Features",
+            "type": "section",
+            "paragraphs": [
+                "Extensive Content Library: {site_name}'s library is filled with diverse genres that cater to every anime lover's taste.",
+                "Friendly UI & UX: Navigating {site_name} is smooth and straightforward, providing an enjoyable and hassle-free user experience.",
+                "No Sign-Up: Accessing {site_name}'s vast library requires no sign-up or registration.",
+                "HD Quality: Experience the vivid colors and intricate details of your favorite anime worlds in HD quality.",
+                "No Ads: {site_name} is a no-ad zone, allowing you to enjoy your anime uninterrupted.",
+                "SUB and DUB: Whether you prefer the original Japanese voice acting with subtitles or the dubbed version, {site_name} has got you covered.",
+                "Fast Loading Speed: Our platform ensures you won't have to wait to immerse yourself in your favorite anime world.",
+                "Device Compatibility: Whether you're on a desktop, tablet, or mobile, our platform is optimized for the best experience."
+            ]
+        }
+    ],
+    "topSearches": [
+        "Chainsaw Man",
+        "One-Punch Man Season 3",
+        "Solo Leveling Season 2",
+        "Bleach",
+        "My Hero Academia Final Season",
+        "One Piece",
+        "Overflow",
+        "Gachiakuta"
+    ]
+}

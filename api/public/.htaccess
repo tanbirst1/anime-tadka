@@ -1,0 +1,27 @@
+# AnimeTadka API — Apache / LiteSpeed
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Protect hidden files
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Compression for JSON
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json text/json
+</IfModule>
+
+# Cache control for API responses (overridden by PHP headers, but fallback)
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    # CORS already set in PHP
+</IfModule>
+
+# Deny access to storage
+RewriteRule ^storage/ - [F,L]

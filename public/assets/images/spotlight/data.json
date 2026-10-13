@@ -1,0 +1,47 @@
+[
+  {
+    "bg": "/assets/images/spotlight/slide1-bg.webp",
+    "logo": "/assets/images/spotlight/slide1-logo.webp",
+    "title": "Anime Tadka",
+    "description": "Your ultimate destination for premium regional dubbed anime.",
+    "badge": "Sub | Dub",
+    "genres": "Action, Adventure",
+    "slug": ""
+  },
+  {
+    "bg": "/assets/images/spotlight/slide2-bg.webp",
+    "logo": "/assets/images/spotlight/slide2-logo.webp",
+    "title": "Trending Now",
+    "description": "Catch up on the most popular anime this season.",
+    "badge": "Sub | Dub",
+    "genres": "Action, Fantasy",
+    "slug": ""
+  },
+  {
+    "bg": "/assets/images/spotlight/slide3-bg.webp",
+    "logo": "/assets/images/spotlight/slide3-logo.webp",
+    "title": "New Releases",
+    "description": "Fresh episodes and new series added daily.",
+    "badge": "Sub | Dub",
+    "genres": "Adventure, Comedy",
+    "slug": ""
+  },
+  {
+    "bg": "/assets/images/spotlight/slide4-bg.webp",
+    "logo": "/assets/images/spotlight/slide4-logo.webp",
+    "title": "Top Rated",
+    "description": "The highest rated anime of all time.",
+    "badge": "Sub | Dub",
+    "genres": "Drama, Thriller",
+    "slug": ""
+  },
+  {
+    "bg": "/assets/images/spotlight/slide5-bg.webp",
+    "logo": "/assets/images/spotlight/slide5-logo.webp",
+    "title": "Classic Collection",
+    "description": "Relive the classics that defined anime.",
+    "badge": "Sub | Dub",
+    "genres": "Action, Sci-Fi",
+    "slug": ""
+  }
+]

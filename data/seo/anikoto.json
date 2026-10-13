@@ -1,0 +1,37 @@
+{
+    "title": "{site_name} - Watch Anime Online, Free Anime Streaming",
+    "intro": [
+        "{site_name} is a free anime streaming destination where fans can watch high-quality anime series and movies with English subtitles or dubbed audio. With a constantly growing collection, discovering your favorite anime takes just a moment."
+    ],
+    "sections": [
+        {
+            "heading": "Is {site_name} secure to use?",
+            "type": "section",
+            "paragraphs": [
+                "Absolutely. {site_name} was built with user experience and safety in mind. We actively monitor the platform and encourage visitors to report anything unusual so we can take quick action."
+            ]
+        },
+        {
+            "heading": "Why choose {site_name} for watching anime online?",
+            "type": "section",
+            "paragraphs": [
+                "Massive catalog: Our library covers a wide range of anime genres, from classics to the latest releases.",
+                "Smooth streaming: Multiple optimized servers are available, allowing you to pick the one that performs best for your location.",
+                "Video quality options: Episodes are available in high resolution, with adjustable quality levels so viewers with slower connections can still enjoy uninterrupted playback.",
+                "Fast updates: New episodes and content are added frequently, ensuring you never fall behind.",
+                "Clean interface: Designed to be simple and intuitive, {site_name} makes finding and watching anime easy, without unnecessary clutter.",
+                "Multi-device support: The site works smoothly on desktops, tablets, and mobile phones, including older browsers."
+            ]
+        }
+    ],
+    "topSearches": [
+        "Solo Leveling Season 2",
+        "One Piece",
+        "Sakamoto Days",
+        "Bleach",
+        "Naruto Shippuden",
+        "Demon Slayer",
+        "Mushoku Tensei",
+        "My Hero Academia"
+    ]
+}

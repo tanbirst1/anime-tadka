@@ -1,0 +1,14 @@
+[
+  {"id": 1, "name": "Hindi", "slug": "hindi"},
+  {"id": 2, "name": "Tamil", "slug": "tamil"},
+  {"id": 3, "name": "Telugu", "slug": "telugu"},
+  {"id": 4, "name": "Bengali", "slug": "bengali"},
+  {"id": 5, "name": "Malayalam", "slug": "malayalam"},
+  {"id": 6, "name": "English", "slug": "english"},
+  {"id": 7, "name": "Japanese", "slug": "japanese"},
+  {"id": 8, "name": "Korean", "slug": "korean"},
+  {"id": 9, "name": "Chinese", "slug": "chinese"},
+  {"id": 10, "name": "French", "slug": "french"},
+  {"id": 11, "name": "Kannada", "slug": "kannada"},
+  {"id": 12, "name": "Marathi", "slug": "marathi"}
+]

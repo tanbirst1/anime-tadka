@@ -1,0 +1,83 @@
+/**
+ * Home page — "Recent Episodes" landscape grid (section layout="episodes-landscape").
+ * Everything is scoped to .ep-landscape-* so the portrait .home-grid / .anime-card
+ * rendering used by every other section stays untouched.
+ * Tokens come from theme.css: --bg, --card, --accent, --border, radius ~14px.
+ */
+
+/* ---------- Grid: 2 cols on mobile, grows to a 3/4-col max ---------- */
+.home-grid.ep-landscape-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+}
+@media (min-width: 560px) {
+    .home-grid.ep-landscape-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 12px;
+    }
+}
+@media (min-width: 1024px) {
+    .home-grid.ep-landscape-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 16px;
+    }
+}
+
+/* ---------- Card shell ---------- */
+.ep-landscape-card {
+    min-width: 0;
+}
+.ep-landscape-card > a {
+    display: block;
+    color: #fff;
+}
+
+/* ---------- 16:9 thumbnail well (badges + play affordance layer on top) ---------- */
+.ep-landscape-card .ep-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: #08090a;
+    flex-shrink: 0;
+}
+.ep-landscape-card .ep-thumb::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    background: linear-gradient(to top, rgb(0 0 0 / .55) 0%, rgb(0 0 0 / 0) 45%);
+    opacity: 1;
+    transition: opacity .4s;
+}
+.ep-landscape-card .ep-thumb img {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    transition: transform .4s, filter .4s;
+}
+.ep-landscape-card:hover .ep-thumb img {
+    transform: scale(1.08);
+    filter: brightness(.6);
+}
+
+/* Data-driven badges can be long — keep them inside the thumb. */
+.ep-landscape-card .ep-thumb .badge {
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- Title below the thumb ---------- */
+.ep-landscape-card .card-details {
+    padding: 10px 12px 12px;
+}
+.ep-landscape-card .card-title {
+    min-height: 0;
+    margin-top: 0;
+    font-size: 13px;
+    line-height: 1.35;
+}

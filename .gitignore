@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+
+# Storage
+storage/screenshots/
+storage/cache/
+storage/logs/
+api/storage/cache/
+api/storage/logs/
+
+# Temp
+*.tmp
+*.bak
+tools/browser/test-*.js
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data discovery (auto-generated)
+data/discovery/*.json
+
+# IDE
+.vscode/
+.idea/
+
+# Reference / comparison artifacts (large, regenerable)
+storage/reference/
+storage/local/
+compare-export/
+clone_data/
+
+# Temp
+storage/tmp/
+
+# Vision payload temp files
+*.payload-*.json
+
+# Provider cache files
+api/anikoto/cache/*.cache
+api/animedekho/storage/cache/*.cache
+
+# Auto-generated output
+graphify-out/
+api/graphify-out/
+
+# Test screenshots
+test/screenshots/

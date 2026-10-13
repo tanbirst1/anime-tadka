@@ -1,0 +1,20 @@
+/* ============================================
+   Episode / Watch page — page-level additions
+   (selectors with no rules in the core theme)
+   ============================================ */
+
+/* Episode header block (title + meta + description wrapper) */
+.ep-header { margin-bottom: 30px; }
+
+/* Other episodes section wrapper */
+.list-section { margin-bottom: 10px; }
+
+/* Search icon prefix inside the episode search input */
+.ep-search-icon-prefix { position: absolute; left: 18px; width: 20px; height: 20px; color: rgba(181, 53, 246, 0.7); pointer-events: none; z-index: 2; transition: all 0.3s ease; }
+
+/* Recommended slider container */
+.reco-slider-container { position: relative; }
+
+/* Episode page: the live reference has no <main class="site-main"> top padding —
+   content starts directly under the header. Zero the 30px site-main padding. */
+body.single-ep .site-main { padding-top: 0 !important; }

@@ -1,0 +1,3 @@
+storage/cache/*
+!storage/cache/.gitkeep
+storage/cache/cookies.txt

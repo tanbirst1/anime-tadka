@@ -1,0 +1,12 @@
+{
+    "cache_enabled": true,
+    "cache_ttl": {
+        "home": 300,
+        "search": 300,
+        "series": 1800,
+        "episode": 3600,
+        "category": 600,
+        "cast": 600,
+        "letter": 600
+    }
+}

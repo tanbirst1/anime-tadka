@@ -1,0 +1,465 @@
+/* --- SKIP ADS 2.0: MASTER GATEWAY UI (ULTIMATE CINEMATIC V10.0) --- */
+
+#sa-debug-output {
+    display: block !important;
+    white-space: pre-wrap !important;
+    color: #ff6b6b !important;
+    text-align: left !important;
+}
+
+/* --- SKIP ADS SUPPORT TELEGRAM SECTION --- */
+.sa-support-section {
+    margin-top: 35px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+/* --- TUTORIAL VIDEO & FLOWING ARROWS --- */
+.sa-tut-section { margin-top: 40px; width: 100%; text-align: center; }
+.sa-tut-title { 
+    display: flex; align-items: center; justify-content: center; gap: 15px; 
+    margin-bottom: 25px; color: #fff; font-weight: 950; font-size: 13px; 
+    letter-spacing: 2px; text-transform: uppercase; 
+}
+
+/* INFINITE FLOW ARROW SVG */
+.sa-flow-arrow { width: 28px; height: 28px; color: var(--sa-accent); overflow: visible; }
+.arrow-path-main { 
+    stroke-dasharray: 30; stroke-dashoffset: 30; 
+    animation: saFlowDown 2s infinite cubic-bezier(0.4, 0, 0.2, 1); 
+}
+@keyframes saFlowDown {
+    0% { stroke-dashoffset: 30; opacity: 0; }
+    50% { stroke-dashoffset: 0; opacity: 1; }
+    100% { stroke-dashoffset: -30; opacity: 0; }
+}
+
+/* RESPONSIVE FLUID PLAYER (9:16) */
+.sa-video-container {
+    position: relative;
+    width: 85%; /* Fluid width */
+    max-width: 320px; /* Mobile width */
+    aspect-ratio: 9 / 16;
+    margin: 0 auto;
+    border-radius: 30px;
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    background: #000;
+    box-shadow: 0 0 40px rgba(0,0,0,0.8), 0 0 20px rgba(155, 89, 182, 0.1);
+    transition: transform 0.3s ease;
+}
+/* Expand for PC/Desktop */
+@media (min-width: 992px) {
+    .sa-video-container { max-width: 420px; border-radius: 40px; }
+}
+.sa-video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+
+.sa-support-hint {
+    font-size: 12px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.sa-tg-support-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 25px;
+    background: rgba(155, 89, 182, 0.1);
+    border: 1px solid rgba(155, 89, 182, 0.3);
+    border-radius: 12px;
+    text-decoration: none !important;
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.sa-tg-support-btn svg {
+    width: 20px;
+    height: 20px;
+    color: #0088cc; /* Telegram Blue */
+}
+
+.sa-tg-support-btn span {
+    font-size: 13px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 0.5px;
+}
+
+.sa-tg-support-btn:hover {
+    background: rgba(155, 89, 182, 0.2);
+    border-color: #9b59b6;
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(155, 89, 182, 0.2);
+}
+
+/* Match your theme accent if the variable isn't active */
+:root {
+    --sa-accent: #9b59b6;
+    --sa-bg: #05020a; /* 🔥 Deep, rich dark purple/black body color */
+    --sa-glass: transparent; /* 🔥 Nuked the container background */
+    --sa-border: rgba(155, 89, 182, 0.2); 
+    --sa-accent-glow: rgba(155, 89, 182, 0.5);
+    --sa-gold: #f7e000;
+    --sa-red: #ef4444;
+    --sa-text: #ffffff;
+    --sa-dim: rgba(255, 255, 255, 0.5);
+    --sa-anim: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* 1. GLOBAL CINEMATIC OVERLAY */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+.sa-gate-body {
+    background-color: var(--sa-bg) !important;
+    color: var(--sa-text) !important;
+    font-family: 'Inter', -apple-system, sans-serif !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow-x: hidden !important;
+    position: relative !important;
+}
+
+/* 2. FULL SCREEN BLURRY GLASS BACKGROUND */
+.particles-bg {
+    position: fixed !important;
+    inset: 0 !important;
+    background: radial-gradient(circle at 50% 0%, #150624 0%, var(--sa-bg) 100%) !important; /* Premium ambient top glow */
+    z-index: -2 !important;
+}
+
+.particles-bg::after {
+    content: '' !important;
+    position: absolute !important;
+    inset: 0 !important;
+    background-image: 
+        radial-gradient(circle at 2px 2px, rgba(155, 89, 182, 0.1) 1px, transparent 0) !important;
+    background-size: 40px 40px !important;
+    backdrop-filter: blur(100px) !important; 
+    -webkit-backdrop-filter: blur(100px) !important;
+    z-index: -1 !important;
+    animation: saFloatBG 100s linear infinite !important;
+}
+
+@keyframes saFloatBG { from { transform: translate(0, 0); } to { transform: translate(500px, 500px); } }
+
+/* 3. THE CONTAINER (REMOVED NARROW LIMITS) */
+.sa-container { 
+    width: 100% !important; 
+    max-width: 1200px !important; /* Wide PC View */
+    padding: 20px !important; 
+    z-index: 10 !important; 
+    margin: 0 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 100vh !important;
+}
+
+/* 4. THE MASTER GLASS CARD (🔥 COMPLETELY TRANSPARENT) */
+.sa-glass-card {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 40px 20px !important;
+    text-align: center !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 900px !important; 
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    transition: var(--sa-anim) !important;
+}
+
+@media (min-width: 1024px) {
+    .sa-glass-card {
+        padding: 60px 40px !important;
+    }
+    .sa-glass-card:hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+}
+
+/* 5. HEADER, LOGO & NEW TITLES (FORCED CENTERING) */
+.sa-header {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    margin-bottom: 20px !important;
+}
+
+.sa-logo-img {
+    max-width: 280px !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 auto 20px !important;
+    filter: drop-shadow(0 0 25px var(--sa-accent-glow)) !important;
+}
+
+/* DYNAMIC HEADINGS */
+.sa-main-title {
+    font-size: clamp(20px, 4vw, 26px) !important;
+    font-weight: 950 !important;
+    color: #ffffff !important;
+    text-align: center !important;
+    margin: 10px 0 10px !important;
+    line-height: 1.3 !important;
+    letter-spacing: -0.5px !important;
+}
+
+.sa-sub-title {
+    font-size: clamp(13px, 2.5vw, 15px) !important;
+    color: rgba(255,255,255,0.6) !important;
+    text-align: center !important;
+    font-weight: 600 !important;
+    margin-bottom: 25px !important;
+    max-width: 85% !important;
+    line-height: 1.5 !important;
+}
+
+.sa-logo { 
+    font-size: clamp(16px, 5.2vw, 42px) !important; 
+    font-weight: 950 !important; 
+    letter-spacing: -1px !important; 
+    background: linear-gradient(to right, #ffffff, var(--sa-accent)) !important;
+    -webkit-background-clip: text !important; 
+    -webkit-text-fill-color: transparent !important;
+    text-transform: uppercase !important; 
+    white-space: nowrap !important; /* ABSOLUTELY ONE LINE */
+    margin-bottom: 15px !important;
+    width: 100% !important;
+    text-align: center !important;
+}
+
+.sa-hint-bar {
+    display: inline-block !important;
+    padding: 8px 22px !important;
+    background: rgba(155, 89, 182, 0.1) !important; /* Darker hint base */
+    border: 1px dashed rgba(155, 89, 182, 0.4) !important;
+    border-radius: 50px !important;
+    margin-top: 5px !important;
+}
+.sa-hint-bar span {
+    font-size: 11px !important; 
+    font-weight: 900 !important; 
+    color: var(--sa-accent) !important;
+    text-transform: uppercase !important; 
+    letter-spacing: 2px !important;
+}
+
+/* 6. MODERN LANGUAGE TABS (🔥 FIX: AUTO-WRAP & CENTERED) */
+.sa-tabs {
+    display: flex !important; 
+    justify-content: center !important; /* Center the tabs */
+    flex-wrap: wrap !important; /* 🔥 Allow wrapping to next line on small screens */
+    gap: 12px !important;
+    background: transparent !important; 
+    padding: 10px 0 !important; 
+    margin: 30px 0 40px !important; 
+    border: none !important;
+    width: 100% !important;
+    max-width: 700px !important; 
+}
+
+.sa-tab {
+    background: rgba(255, 255, 255, 0.03) !important; 
+    border: 1px solid rgba(255, 255, 255, 0.05) !important; 
+    color: var(--sa-dim) !important;
+    padding: 12px 24px !important; 
+    font-size: 13px !important; 
+    font-weight: 800 !important;
+    cursor: pointer !important; 
+    border-radius: 100px !important; 
+    transition: var(--sa-anim) !important;
+    flex: 0 0 auto !important; 
+    white-space: nowrap !important;
+}
+
+.sa-tab.active { 
+    background: var(--sa-accent) !important; 
+    border-color: var(--sa-accent) !important;
+    color: #fff !important; 
+    box-shadow: 0 8px 25px rgba(155, 89, 182, 0.4) !important; 
+    transform: scale(1.05) !important;
+}
+
+/* 7. SERVER BUTTONS & DIVIDERS (FIXED SVG) */
+.sa-server-list { 
+    display: flex !important; 
+    flex-direction: column !important; 
+    gap: 20px !important; 
+    width: 100% !important; 
+    max-width: 500px !important; /* Keeps buttons from looking ridiculously wide on PC */
+    margin: 0 auto !important;
+}
+.sa-server-group { display: flex !important; flex-direction: column !important; gap: 12px !important; width: 100% !important; }
+
+.sa-btn-main {
+    position: relative !important; 
+    width: 100% !important; 
+    background: rgba(26, 11, 46, 0.7) !important; /* Deep glass purple background */
+    border: 1px solid rgba(155, 89, 182, 0.3) !important; 
+    padding: 22px !important; 
+    border-radius: 20px !important;
+    color: #fff !important; 
+    font-size: 16px !important; 
+    font-weight: 800 !important; 
+    cursor: pointer !important;
+    display: flex !important; 
+    align-items: center !important; 
+    justify-content: center !important; 
+    gap: 15px !important;
+    transition: var(--sa-anim) !important; 
+    overflow: hidden !important;
+    backdrop-filter: blur(15px) !important;
+}
+
+.sa-btn-main i { 
+    color: var(--sa-accent) !important; 
+    font-size: 20px !important; 
+    display: inline-block !important; /* Forced visibility */
+}
+
+.sa-btn-main:hover { 
+    background: var(--sa-accent) !important; 
+    border-color: #fff !important;
+    transform: scale(1.03) !important;
+    box-shadow: 0 15px 35px var(--sa-accent-glow) !important;
+}
+.sa-btn-main:hover i, .sa-btn-main:hover .btn-text { color: #fff !important; }
+
+.sa-or-divider {
+    display: flex !important; 
+    align-items: center !important; 
+    justify-content: center !important; 
+    gap: 25px !important; 
+    margin: 10px 0 !important;
+    width: 100% !important;
+}
+.sa-or-divider::before, .sa-or-divider::after { 
+    content: "" !important; 
+    height: 1px !important; 
+    flex: 1 !important; 
+    background: rgba(155,89,182,0.2) !important; 
+}
+.sa-or-divider span { font-size: 12px !important; font-weight: 950 !important; color: #6b7280 !important; }
+
+/* 8. TUTORIAL LINKS */
+.sa-tutorial-link {
+    font-size: 14px !important; 
+    color: var(--sa-gold) !important; 
+    text-decoration: none !important;
+    font-weight: 800 !important; 
+    display: inline-flex !important; 
+    align-items: center !important; 
+    justify-content: center !important; 
+    gap: 10px !important;
+    padding: 15px 25px !important;
+    border-radius: 12px !important;
+    background: rgba(247, 224, 0, 0.1) !important;
+    border: 1px dashed rgba(247, 224, 0, 0.4) !important;
+    transition: var(--sa-anim) !important;
+}
+.sa-tutorial-link i { font-size: 18px !important; color: var(--sa-gold) !important; }
+.sa-tutorial-link:hover { 
+    color: #000 !important; 
+    background: var(--sa-gold) !important;
+    border-color: var(--sa-gold) !important;
+    transform: scale(1.03) !important; 
+    box-shadow: 0 10px 25px rgba(247, 224, 0, 0.3) !important;
+}
+.sa-tutorial-link:hover i { color: #000 !important; }
+
+/* 9. LOADING STATE */
+.sa-loader {
+    position: absolute !important; 
+    right: 25px !important; 
+    width: 22px !important; 
+    height: 22px !important;
+    border: 3px solid rgba(255,255,255,0.2) !important; 
+    border-top: 3px solid #fff !important;
+    border-radius: 50% !important; 
+    display: none !important; 
+    animation: saSpin 0.8s linear infinite !important;
+}
+@keyframes saSpin { to { transform: rotate(360deg); } }
+.sa-btn-main.loading .sa-loader { display: block !important; }
+
+/* 10. PREMIUM MODAL */
+.sa-modal-overlay {
+    position: fixed !important; inset: 0 !important;
+    background: rgba(0, 0, 0, 0.95) !important; 
+    backdrop-filter: blur(25px) !important;
+    z-index: 100000 !important; 
+    display: none; 
+    align-items: center !important; 
+    justify-content: center !important; 
+}
+.sa-modal-box {
+    background: #0d0514 !important; 
+    border: 1px solid var(--sa-border) !important; 
+    border-radius: 40px !important; 
+    padding: 50px 40px !important; 
+    width: 90% !important; 
+    max-width: 450px !important; 
+    text-align: center !important;
+}
+.sa-modal-close {
+    width: 100% !important; 
+    background: var(--sa-accent) !important; 
+    padding: 20px !important; 
+    border-radius: 20px !important; 
+    color: #fff !important; 
+    font-weight: 900 !important; 
+    border: none !important;
+    cursor: pointer !important;
+}
+
+/* 11. FOOTER NOTE */
+.sa-footer-note { 
+    width: 100% !important; 
+    margin-top: 50px !important; 
+    /* 🔥 Fixed the "Light" line by removing the border */
+    border-top: none !important; 
+    padding-top: 15px !important; 
+}
+.sa-footer-note p { font-size: 12px !important; color: var(--sa-dim) !important; font-weight: 700 !important; letter-spacing: 1px !important; text-transform: uppercase !important; }
+
+/* 🔥 MOBILE RESPONSIVE OPTIMIZATIONS (GAP CRUSHER APPLIED) */
+@media (max-width: 480px) {
+    .sa-container { padding: 10px !important; }
+    
+    .sa-glass-card { padding: 25px 15px !important; width: 100% !important; margin: 0 !important; }
+    
+    .sa-header { margin-bottom: 10px !important; }
+    .sa-logo-img { max-width: 180px !important; margin-bottom: 15px !important; }
+    
+    .sa-main-title { font-size: 20px !important; margin-bottom: 8px !important; }
+    .sa-sub-title { font-size: 12px !important; max-width: 95% !important; margin-bottom: 20px !important; }
+    
+    .sa-hint-bar { padding: 6px 16px !important; margin-top: 0 !important; }
+    .sa-hint-bar span { font-size: 9px !important; }
+    
+    .sa-tabs { margin: 15px 0 25px !important; padding: 5px 0 !important; gap: 8px !important; }
+    .sa-tab { padding: 8px 14px !important; font-size: 11px !important; }
+    
+    .sa-server-list { gap: 12px !important; max-width: 100% !important; }
+    .sa-server-group { gap: 8px !important; }
+    .sa-btn-main { padding: 16px !important; font-size: 14px !important; border-radius: 16px !important; }
+    
+    .sa-support-section { margin-top: 25px !important; gap: 8px !important; }
+    .sa-footer-note { margin-top: 10px !important; padding-top: 0 !important; }
+}.arrow-path-main { stroke-dasharray: 30; stroke-dashoffset: 30; animation: 2s cubic-bezier(0.4, 0, 0.2, 1) 0s infinite normal none running saFlowDown; }
+@keyframes saFlowDown { 0% { stroke-dashoffset: 30; opacity: 0; } 50% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: -30; opacity: 0; } }

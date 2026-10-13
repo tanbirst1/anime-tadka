@@ -1,0 +1,54 @@
+{
+    "title": "{site_name} - The Ultimate Platform to Watch Anime in Hindi, Telugu, Tamil, Malayalam, Bengali & Kannada",
+    "intro": [
+        "Did you realize that every month, more than a billion people use Google to look up things linked to anime? Given how popular anime is all around the world, it makes sense that there are a lot more websites offering free anime streaming. Like free online movie watching sites, there are better and worse websites when it comes to anime streaming. Because of this, we created {site_name}, one of the best free anime streaming sites accessible to all anime fans across the globe."
+    ],
+    "sections": [
+        {
+            "heading": "Do you Know about {site_name}?",
+            "type": "section",
+            "paragraphs": [
+                "You can download extremely high resolution (Ultra High Definition) Hindi as well, Telugu, & Tamil anime from {site_name} for free without registering or paying anything. With a focused approach to user experience, we hope to make it the most secure website for free anime."
+            ]
+        },
+        {
+            "heading": "Languages Offered for Anime Watching",
+            "type": "section",
+            "paragraphs": [
+                "{site_name} offers high-quality dubbed content in numerous regional languages to ensure every fan feels at home:",
+                "Hindi Dub Anime: Free streaming of numerous programs like Naruto, Pokemon, Vinland Saga, and Jujutsu Kaisen.",
+                "Telugu Dub Anime: Series including My Hero Academia, Naruto, and My Dress Up Darling are available for free.",
+                "Tamil Dub Anime: Watch Darling in the FranXX, Vinland Saga, and more with high-quality Tamil audio.",
+                "Malayalam & Bengali Dubs: We offer a wide variety of titles like Naruto and My Hero Academia in Malayalam and Bengali."
+            ]
+        },
+        {
+            "heading": "Is {site_name} secure?",
+            "type": "section",
+            "paragraphs": [
+                "Indeed, we are. We prioritize security above all else. We monitor our streams regularly to ensure they remain clean and safe. If you ever encounter any suspicious activity, kindly report the details to our support, and we will act immediately."
+            ]
+        },
+        {
+            "heading": "Why {site_name} is the Greatest?",
+            "type": "section",
+            "paragraphs": [
+                "Safety First: We ensure a harmful-ad and virus-free environment for all users.",
+                "Massive Library: From action and romance to mystery and school genres, we have everything multilingually dubbed.",
+                "Smart Resolution: Adjust between 360p, 720p, or 1080p based on your internet speed for seamless playback.",
+                "Blazing Fast UI: Our interface is designed to be intuitive for all ages. Finding your favorite title takes seconds.",
+                "Cross-Platform: Fully responsive on mobile, PC, and tablets, though we recommend desktop for the most cinematic feel."
+            ]
+        }
+    ],
+    "topSearches": [
+        "Naruto Shippuden",
+        "Naruto",
+        "One Piece",
+        "Tokyo Revengers",
+        "Solo Leveling",
+        "Detective Conan",
+        "Jujutsu Kaisen",
+        "Attack on Titan"
+    ]
+}

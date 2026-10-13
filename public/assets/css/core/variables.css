@@ -1,0 +1,15 @@
+:root {
+  --bg: #0b0d14;
+  --card: rgba(22, 25, 30, 0.6);
+  --accent: #9b59b6;
+  --gold: #f7e000;
+  --red: #e11d48;
+  --red-pro: #ff0000;
+  --text: #ffffff;
+  --text-dim: #9ca3af;
+  --border: rgba(255, 255, 255, 0.08);
+  --glass: rgba(255, 255, 255, 0.03);
+  --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --font-main: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: Montserrat, Inter, sans-serif;
+}
