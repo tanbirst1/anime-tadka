@@ -706,9 +706,14 @@ function pa_animedekho_movie(array $data, string $slug): ?array {
             ];
         }
         if ($showDownload) {
+            // Only the raw download.php|download2.php endpoint is known here.
+            // Resolving it to the real file (file.php / external mirror) is
+            // deferred to the Download modal so it costs nothing until asked.
             $downloadServers[] = [
                 'name'    => $s['name'] ?? ('Download ' . ($i + 1)),
-                'url'     => $s['downloadSrc'] ?? $s['download'] ?? '',
+                'url'     => $s['downloadSrc'] ?? '',
+                'raw'     => $s['download'] ?? '',
+                'lazy'    => true,
                 'quality' => $s['quality'] ?? '',
                 'language' => $s['language'] ?? '',
             ];

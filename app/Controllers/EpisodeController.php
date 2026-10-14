@@ -21,4 +21,20 @@ class EpisodeController {
 
         View::render('watch/episode', $data, 'main');
     }
+
+    /**
+     * Lazy download resolution: the Download modal calls this with the episode
+     * slug and gets back the real download links. Keeps the wrapper fetches off
+     * the episode page until a visitor actually asks for a download.
+     */
+    public function downloads() {
+        header('Content-Type: application/json; charset=utf-8');
+        $slug = trim((string) ($_GET['slug'] ?? ''));
+        if ($slug === '') {
+            echo json_encode(['ok' => false, 'downloads' => []]);
+            return;
+        }
+        $downloads = api_try(fn () => api_resolve_downloads($slug), []);
+        echo json_encode(['ok' => true, 'downloads' => is_array($downloads) ? $downloads : []]);
+    }
 }

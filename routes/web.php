@@ -141,6 +141,9 @@ $router->get('/watchhentai/ep/{id:.+}', function ($id) use ($whRedirect) { $whRe
 $router->get('/watchhentai/{slug}', function ($slug) use ($whRedirect) { $whRedirect('/hentai/' . $slug); });
 
 // === Multi-segment routes (must come before single-segment catch-alls) ===
+// Lazy download resolver — must precede the /ep/{id} catch-all below.
+$router->get('/ep/downloads', [EpisodeController::class, 'downloads']);
+
 $router->get('/ep/{id:.+}', [EpisodeController::class, 'show']);
 
 // Custom player (watchhentai): player page + mp4 proxy — before /{slug}

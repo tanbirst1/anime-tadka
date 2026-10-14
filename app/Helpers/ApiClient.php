@@ -2073,8 +2073,10 @@ function api_episode_data(string $hash) {
             $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
             return $ad->episode($slug, null);
         }, null);
-        // Episode not found — only then try movie (servers check prevents series→movie misclass)
-        if (!is_array($data) || empty($data['title']) || empty($data['servers'])) {
+        // Episode not found — only then try movie. A gated episode still
+        // carries a title (from the /epi/ HTML) but no servers, so the
+        // episode/movie choice keys off the title, not the server count.
+        if (!is_array($data) || empty($data['title'])) {
             $movie = api_try(function () use ($slug) {
                 pa_load_animedekho();
                 require_once ROOT_PATH . '/api/animedekho/app/autoload.php';
@@ -2082,11 +2084,15 @@ function api_episode_data(string $hash) {
                 $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
                 return $ad->movie($slug, null);
             }, null);
-            if (is_array($movie) && !empty($movie['servers'])) {
+            if (is_array($movie) && !empty($movie['title'])) {
                 return pa_animedekho_movie($movie, $hash);
             }
         }
-        if (!is_array($data) || empty($data['title']) || empty($data['servers'])) return null;
+        // No title at all means neither /epi/ nor /movie-hindi/ matched: 404.
+        // A title with no servers is a gated episode — keep it so the page
+        // renders the title/poster/nav and the player shows the gate notice
+        // instead of a bare 404.
+        if (!is_array($data) || empty($data['title'])) return null;
         # Series episodes must show OTHER EPISODES/SEASONS, not "Full Movie"
         $seriesUrl = $data['navigation']['seriesPage'] ?? '';
         $seriesSlug = $seriesUrl !== '' ? pa_slug_from_url($seriesUrl) : '';
@@ -2382,4 +2388,58 @@ function api_schedule_data() {
         return ['days' => []];
     }
     return $data;
+}
+
+/**
+ * Resolve a slug's lazy download endpoints. Only animedekho defers download
+ * resolution; other providers embed the final link at scrape time. Returns a
+ * list of {name, url, quality, language}; `url` is empty when the upstream
+ * endpoint could not be resolved to a real file.
+ */
+function api_resolve_downloads(string $slug): array {
+    if ($slug === '') {
+        return [];
+    }
+    if (api_provider() !== 'animedekho') {
+        return [];
+    }
+
+    $fetch = function (string $method) use ($slug) {
+        pa_load_animedekho();
+        require_once ROOT_PATH . '/api/animedekho/app/autoload.php';
+        $http = new \AnimeDekhoApi\Utils\HttpClient();
+        $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
+        return $ad->{$method}($slug, null);
+    };
+
+    $data = api_try(fn () => $fetch('episode'), null);
+    // Movies resolve through the /movie-hindi/ page instead of /epi/.
+    if (!is_array($data) || empty($data['servers'])) {
+        $data = api_try(fn () => $fetch('movie'), null);
+    }
+    if (!is_array($data) || empty($data['servers'])) {
+        return [];
+    }
+
+    $servers = api_try(function () use ($data) {
+        pa_load_animedekho();
+        require_once ROOT_PATH . '/api/animedekho/app/autoload.php';
+        $http = new \AnimeDekhoApi\Utils\HttpClient();
+        $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
+        return $ad->withDownloadSrcs($data['servers']);
+    }, []);
+
+    $out = [];
+    foreach (($servers ?: []) as $i => $s) {
+        if (!is_array($s) || (string) ($s['download'] ?? '') === '') {
+            continue;
+        }
+        $out[] = [
+            'name'     => (string) ($s['name'] ?? ('Download ' . ($i + 1))),
+            'url'      => (string) ($s['downloadSrc'] ?? ''),
+            'quality'  => (string) ($s['quality'] ?? ''),
+            'language' => (string) ($s['language'] ?? ''),
+        ];
+    }
+    return $out;
 }

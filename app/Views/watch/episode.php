@@ -54,12 +54,27 @@ $recommendations = $episode['recommendations'] ?? [];
     // player URL would just 404 inside the frame, so show a retry notice
     // instead of a dead iframe.
     $showEmptyState = trim((string) $playerSrc) === '' || (empty($episodeServers) && $isWhPlayer);
+    // animedekho.tv gates playback behind a one-per-24h human "skip the ad"
+    // wall: the /epi/ page still gives us the title/poster, but the REST API
+    // returns no sources until the visitor clears the gate on the source site.
+    $isAdGated = empty($episodeServers) && Config::get('provider') === 'animedekho';
+    $gateUrl = '';
+    if ($isAdGated) {
+        $slug = (string) ($episode['hash'] ?? $episode['id'] ?? '');
+        $gateUrl = 'https://animedekho.tv/?dgt_gate=1&next=' . rawurlencode('https://animedekho.tv/epi/' . $slug . '/');
+    }
     ?>
     <?php if ($showEmptyState): ?>
     <div class="player-container" id="at-container-v2" style="background:#000 !important; display:block !important; visibility:visible !important; opacity:1 !important;">
         <div style="width:100%; height:100%; min-height:240px; display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:24px; box-sizing:border-box; text-align:center;">
+            <?php if ($isAdGated): ?>
+            <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Playback for this title is locked behind the source site's ad gate.</p>
+            <p style="margin:0; color:#9aa; font-size:13px;">Open it once (unlocks for ~24h) and come back to watch.</p>
+            <a href="<?= View::escape($gateUrl) ?>" target="_blank" rel="noopener noreferrer" style="border:0; border-radius:8px; padding:10px 26px; background:#9b59b6; color:#fff; font-size:14px; font-weight:700; text-decoration:none;">Unlock Playback</a>
+            <?php else: ?>
             <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Sources failed to load. Please retry.</p>
             <button type="button" onclick="location.reload()" style="border:0; border-radius:8px; padding:9px 26px; background:#389ce9; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">Retry</button>
+            <?php endif; ?>
         </div>
     </div>
     <?php else: ?>
@@ -186,6 +201,10 @@ $recommendations = $episode['recommendations'] ?? [];
     <?php
     // Download servers are kept out of the streaming tabs and surfaced behind
     // a single Download button that opens a modal listing every quality.
+    // animedekho only exposes the raw download.php endpoint up front (resolving
+    // it to the real file is the expensive part), so those rows are marked
+    // `lazy`: the modal shows a loading row per server and resolves them one by
+    // one via /ep/downloads only after the visitor opens it.
     $downloadServers = $episode['download_servers'] ?? [];
     if (empty($downloadServers)) {
         foreach (($episode['download_links'] ?? []) as $dl) {
@@ -193,11 +212,18 @@ $recommendations = $episode['recommendations'] ?? [];
             $downloadServers[] = [
                 'name' => $dl['label'] ?? 'Download',
                 'url' => $dl['url'],
+                'raw' => '',
+                'lazy' => false,
                 'quality' => '',
                 'language' => '',
             ];
         }
     }
+    // Only servers that actually carry a download endpoint get a row.
+    $downloadServers = array_values(array_filter($downloadServers, static function ($dl) {
+        return is_array($dl) && (!empty($dl['url']) || !empty($dl['raw']));
+    }));
+    $dlSlug = (string) ($episode['hash'] ?? '');
     ?>
     <?php if (!empty($downloadServers)): ?>
     <div class="dl-actions">
@@ -214,8 +240,18 @@ $recommendations = $episode['recommendations'] ?? [];
                 <h3>Download Servers</h3>
                 <button type="button" class="dl-modal-x" data-dl-close aria-label="Close">&times;</button>
             </div>
-            <div class="dl-modal-list">
+            <div class="dl-modal-list" id="dl-modal-list">
                 <?php foreach ($downloadServers as $dl): ?>
+                <?php if (!empty($dl['lazy'])): ?>
+                <div class="dl-item dl-item--pending" data-dl-lazy>
+                    <span class="dl-item-name"><?= View::escape($dl['name'] ?: 'Download') ?></span>
+                    <span class="dl-item-meta">
+                        <?php if (!empty($dl['quality'])): ?><span class="dl-tag"><?= View::escape($dl['quality']) ?></span><?php endif; ?>
+                        <?php if (!empty($dl['language'])): ?><span class="dl-tag"><?= View::escape($dl['language']) ?></span><?php endif; ?>
+                    </span>
+                    <span class="dl-item-status"><span class="dl-spinner" aria-hidden="true"></span>Fetching link…</span>
+                </div>
+                <?php else: ?>
                 <a class="dl-item" href="<?= View::escape($dl['url']) ?>" target="_blank" rel="noopener noreferrer nofollow">
                     <span class="dl-item-name"><?= View::escape($dl['name'] ?: 'Download') ?></span>
                     <span class="dl-item-meta">
@@ -224,6 +260,7 @@ $recommendations = $episode['recommendations'] ?? [];
                     </span>
                     <svg class="dl-item-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 </a>
+                <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -233,11 +270,56 @@ $recommendations = $episode['recommendations'] ?? [];
         var openBtn = document.getElementById('dl-open-btn');
         var modal = document.getElementById('dl-modal');
         if (!openBtn || !modal) return;
+        var list = document.getElementById('dl-modal-list');
+        var slug = <?= json_encode($dlSlug) ?>;
+        var lazyRows = list ? Array.prototype.slice.call(list.querySelectorAll('[data-dl-lazy]')) : [];
+        var loaded = false;
         function open() { modal.hidden = false; document.body.style.overflow = 'hidden'; }
         function close() { modal.hidden = true; document.body.style.overflow = ''; }
-        openBtn.addEventListener('click', open);
+        openBtn.addEventListener('click', function () { open(); loadDownloads(); });
         modal.addEventListener('click', function (e) { if (e.target.hasAttribute('data-dl-close')) close(); });
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+
+        var DL_ICON = '<svg class="dl-item-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
+
+        // Turn a pending row into a real link (or an "unavailable" notice).
+        function fillRow(row, dl) {
+            row.classList.remove('dl-item--pending');
+            var status = row.querySelector('.dl-item-status');
+            if (dl && dl.url) {
+                var a = document.createElement('a');
+                a.className = 'dl-item dl-item--reveal';
+                a.href = dl.url;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer nofollow';
+                a.innerHTML = row.innerHTML;
+                var st = a.querySelector('.dl-item-status');
+                if (st) st.remove();
+                a.insertAdjacentHTML('beforeend', DL_ICON);
+                row.replaceWith(a);
+            } else {
+                row.classList.add('dl-item--empty');
+                if (status) status.innerHTML = 'Link unavailable';
+            }
+        }
+
+        // Resolve the pending rows one at a time so the list fills in
+        // top-to-bottom with a short reveal between each.
+        function loadDownloads() {
+            if (loaded || !lazyRows.length || !slug) return;
+            loaded = true;
+            fetch('/ep/downloads?slug=' + encodeURIComponent(slug), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var downloads = (data && data.downloads) || [];
+                    lazyRows.forEach(function (row, i) {
+                        setTimeout(function () { fillRow(row, downloads[i]); }, i * 350);
+                    });
+                })
+                .catch(function () {
+                    lazyRows.forEach(function (row) { fillRow(row, null); });
+                });
+        }
     })();
     </script>
     <?php endif; ?>
@@ -264,6 +346,13 @@ $recommendations = $episode['recommendations'] ?? [];
         .dl-item-meta { display: flex; gap: 6px; }
         .dl-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #c9a7e0; background: rgb(155 89 182 / .18); border-radius: 6px; padding: 3px 7px; }
         .dl-item-dl { width: 18px; height: 18px; color: #9b59b6; flex-shrink: 0; }
+        .dl-item-status { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: #9a9ab0; }
+        .dl-item--pending { border-style: dashed; }
+        .dl-item--empty .dl-item-status { color: #d98; }
+        .dl-item--reveal { animation: dlReveal .28s ease; }
+        @keyframes dlReveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+        .dl-spinner { width: 14px; height: 14px; border: 2px solid rgb(255 255 255 / .2); border-top-color: #9b59b6; border-radius: 50%; animation: dlSpin .7s linear infinite; flex-shrink: 0; }
+        @keyframes dlSpin { to { transform: rotate(360deg); } }
     </style>
     <?php endif; ?>
 

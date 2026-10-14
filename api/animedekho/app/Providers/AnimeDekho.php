@@ -837,9 +837,26 @@ final class AnimeDekho
         $jsonCache = [];
         $bodies = $this->fetchWrappers($pending, 2, $jsonCache);
 
-        // Resolve download endpoints (download.php / download2.php) in one
-        // batch: each points at an intermediate file.php link or an external
-        // mirror that serves the actual file.
+        foreach ($servers as &$server) {
+            $src = $server['src'] ?? null;
+            if (is_string($src) && $src !== '' && isset($bodies[$src]) && $bodies[$src] !== null) {
+                $server['originalSrc'] = $this->resolveSrc($src, $bodies, $jsonCache, 4);
+            }
+        }
+        unset($server);
+        return $servers;
+    }
+
+    /**
+     * Resolve the download endpoint for each server lazily — the caller runs
+     * this only when a visitor actually opens the Download modal, so episode
+     * pages no longer pay the per-download wrapper fetch up front.
+     *
+     * @param array<int, array<string, mixed>> $servers
+     * @return array<int, array<string, mixed>>
+     */
+    public function withDownloadSrcs(array $servers): array
+    {
         $dlUrls = [];
         foreach ($servers as $server) {
             $dl = $server['download'] ?? null;
@@ -847,13 +864,10 @@ final class AnimeDekho
                 $dlUrls[] = $dl;
             }
         }
+        $jsonCache = [];
         $dlBodies = $this->fetchWrappers($dlUrls, 1, $jsonCache);
 
         foreach ($servers as &$server) {
-            $src = $server['src'] ?? null;
-            if (is_string($src) && $src !== '' && isset($bodies[$src]) && $bodies[$src] !== null) {
-                $server['originalSrc'] = $this->resolveSrc($src, $bodies, $jsonCache, 4);
-            }
             $dl = $server['download'] ?? null;
             if (is_string($dl) && $dl !== '' && isset($dlBodies[$dl]) && $dlBodies[$dl] !== null) {
                 $server['downloadSrc'] = $this->resolveDownloadHref($dl, (string) $dlBodies[$dl]) ?? $dl;
