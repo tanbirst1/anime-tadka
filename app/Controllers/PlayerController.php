@@ -166,12 +166,14 @@ class PlayerController {
             'Referer: https://watchhentai.net/',
             'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         ];
-        // Forward the client's cache validators so revalidation behaves
-        // like a direct upstream connection. (Range is managed below.)
-        foreach (['HTTP_IF_RANGE' => 'If-Range', 'HTTP_IF_NONE_MATCH' => 'If-None-Match', 'HTTP_IF_MODIFIED_SINCE' => 'If-Modified-Since'] as $srv => $name) {
-            if (!empty($_SERVER[$srv])) {
-                $baseHeaders[] = $name . ': ' . $_SERVER[$srv];
-            }
+        // Forward the client's If-Range so a mid-download seek validates the
+        // same bytes, but never forward If-None-Match / If-Modified-Since:
+        // those make the media host answer 304 with an empty body, which the
+        // byte-stream loop cannot satisfy and turns into a 502 the moment the
+        // browser revalidates a cached range (e.g. after switching servers and
+        // back). The proxy always returns fresh 206/200 bodies instead.
+        if (!empty($_SERVER['HTTP_IF_RANGE'])) {
+            $baseHeaders[] = 'If-Range: ' . $_SERVER['HTTP_IF_RANGE'];
         }
 
         // Parse the client's requested range (bytes=A-B, bytes=A-, bytes=-N).
@@ -207,6 +209,7 @@ class PlayerController {
         $attempt = 0;
         $maxAttempts = 500; // total upstream executions cap (chunks + retries)
         $chunkFailures = 0; // consecutive failed chunks; abort request at 5
+        $conditionalGuard = false; // retried once after an unexpected 304
         // Chunk size: short-lived upstream connections finish before the
         // network stalls them (was: one open-ended stream per request).
         $CHUNK = 8 * 1024 * 1024;
@@ -319,6 +322,10 @@ class PlayerController {
                             }
                             header('Content-Type: ' . $mime);
                             header('Accept-Ranges: bytes');
+                            // Fresh bytes every time: never let the browser
+                            // store a cacheable range response it would later
+                            // revalidate (revalidation is what surfaced 502s).
+                            header('Cache-Control: no-store');
                             if ($etag !== null) {
                                 header('ETag: ' . $etag);
                             }
@@ -374,6 +381,14 @@ class PlayerController {
 
             if ($isHead) {
                 return;
+            }
+            // Defensive: if the upstream still answers 304 (a proxy or CDN in
+            // front of it revalidating on our behalf), there is no body to
+            // stream. Re-request the same slice as a fresh 200 instead of
+            // reporting 502 — a conditional-free loop guard stops any spin.
+            if (($resp['status'] ?? 0) === 304 && !$conditionalGuard) {
+                $conditionalGuard = true;
+                continue;
             }
             $expect = null;
             if ($reqEnd !== null) {
