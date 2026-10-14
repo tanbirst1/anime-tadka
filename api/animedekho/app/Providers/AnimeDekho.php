@@ -547,13 +547,6 @@ final class AnimeDekho
             return [];
         }
         $data = $this->watch($postId, $episodeId);
-        // The site re-arms a per-IP "skip the ad" wall every 24h: until it
-        // is passed the REST reply is {gated:true, gate:...} with no sources.
-        // Pass it once and every later episode unlocks for the window.
-        for ($attempt = 0; $attempt < 2 && $this->isGated($data); $attempt++) {
-            $this->passGate((string) $data['gate'], 5 + $attempt * 7);
-            $data = $this->watch($postId, $episodeId);
-        }
         if (!is_array($data) || !empty($data['gated'])) {
             return [];
         }
@@ -607,45 +600,6 @@ final class AnimeDekho
             $this->base . '/wp-json/dgt/v1/watch',
             ['post_id' => $postId, 'episode_id' => $episodeId]
         );
-    }
-
-    /** @param array<string, mixed>|null $data */
-    private function isGated($data): bool
-    {
-        return is_array($data) && !empty($data['gated']) && !empty($data['gate']);
-    }
-
-    /**
-     * Clear the site's "skip the ad" wall for the current IP. The gate page
-     * carries several skip forms; the last hidden `shortlink` is the verify
-     * URL that issues the ~24h unlock cookie. The site rejects the verify hit
-     * if it arrives too soon after the gate page, hence the delay.
-     */
-    private function passGate(string $gateUrl, int $delay): void
-    {
-        try {
-            $html = $this->http->get($gateUrl);
-        } catch (ScrapeException $e) {
-            return;
-        }
-        if (!preg_match_all('#<form[^>]*action="([^"]*skip/[^"]*)"[^>]*>(.*?)</form>#s', $html, $forms, PREG_SET_ORDER)) {
-            return;
-        }
-        $verify = '';
-        foreach ($forms as $form) {
-            if (preg_match('#name="shortlink"[^>]*value="([^"]*)"#', $form[2], $m)) {
-                $verify = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5);
-            }
-        }
-        if ($verify === '') {
-            return;
-        }
-        sleep($delay);
-        try {
-            $this->http->get($verify);
-        } catch (ScrapeException $e) {
-            // Unlock failed — the caller retries or reports empty sources.
-        }
     }
 
     // ------------------------------------------------------------------
