@@ -41,10 +41,10 @@
                         </div>
                         <p class="sa-description"><?= View::escape($item['description'] ?? '') ?></p>
                         <div class="sa-actions">
-                            <a href="<?= View::hurl('/') ?><?= View::escape($item['slug']) ?>" class="sa-btn-main">
+                            <a href="<?= View::escape(View::typeHref('/', $item['type'] ?? 'series', $item['slug'])) ?>" class="sa-btn-main">
                                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg> Watch Now
                             </a>
-                            <a href="<?= View::hurl('/') ?><?= View::escape($item['slug']) ?>" class="sa-btn-alt">
+                            <a href="<?= View::escape(View::typeHref('/', $item['type'] ?? 'series', $item['slug'])) ?>" class="sa-btn-alt">
                                 Details <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"></path></svg>
                             </a>
                         </div>
@@ -119,7 +119,7 @@
     <div class="home-grid ep-landscape-grid">
         <?php foreach (array_slice($latestEpisodesSection['items'] ?? [], 0, 12) as $ep): ?>
         <div class="anime-card ep-landscape-card">
-            <a href="<?= View::hurl('/') ?><?= View::escape($ep['slug']) ?>">
+            <a href="<?= View::escape(View::typeHref('/ep/', $ep['type'] ?? 'episode', $ep['slug'])) ?>">
                 <div class="ep-thumb">
                     <?php if (!empty($ep['episode'])): ?><span class="badge se-badge"><?= View::escape($ep['episode']) ?></span><?php endif; ?>
                     <?php if (!empty($ep['audio'])): ?><span class="badge meta-badge"><?= View::escape($ep['audio']) ?></span><?php endif; ?>
@@ -165,7 +165,7 @@
         <div class="home-grid lat-target-grid" id="lat-grid-all" style="display: grid !important;">
             <?php foreach ($latestAll as $ep): ?>
             <div class="anime-card">
-                <a href="<?= View::hurl('/') ?><?= View::escape($ep['slug']) ?>">
+                <a href="<?= View::escape(View::typeHref('/', $ep['type'] ?? '', $ep['slug'])) ?>">
                     <div class="poster-box">
                         <?php if (!empty($ep['episode'] ?? '')): ?><span class="badge se-badge"><?= View::escape($ep['episode']) ?></span><?php endif; ?>
                         <?php if (!empty($ep['audio'] ?? '')): ?><span class="badge meta-badge"><?= View::escape($ep['audio']) ?></span><?php endif; ?><?php if (!empty($ep['year'] ?? '')): ?><?php if (!empty($ep['year'] ?? '')): ?><?php endif; ?><?php endif; ?>
@@ -180,7 +180,7 @@
         <div class="home-grid lat-target-grid" id="lat-grid-series" style="display: none !important;">
             <?php foreach ($latestSeries as $ep): ?>
             <div class="anime-card">
-                <a href="<?= View::hurl('/') ?><?= View::escape($ep['slug']) ?>">
+                <a href="<?= View::escape(View::typeHref('/', $ep['type'] ?? 'series', $ep['slug'])) ?>">
                     <div class="poster-box">
                         <?php if (!empty($ep['episode'] ?? '')): ?><span class="badge se-badge"><?= View::escape($ep['episode']) ?></span><?php endif; ?>
                         <?php if (!empty($ep['audio'] ?? '')): ?><span class="badge meta-badge"><?= View::escape($ep['audio']) ?></span><?php endif; ?><?php if (!empty($ep['year'] ?? '')): ?><?php if (!empty($ep['year'] ?? '')): ?><?php endif; ?><?php endif; ?>
@@ -196,7 +196,7 @@
         <div class="home-grid lat-target-grid" id="lat-grid-movies" style="display: none !important;">
             <?php foreach ($latestMovies as $ep): ?>
             <div class="anime-card">
-                <a href="<?= View::hurl('/') ?><?= View::escape($ep['slug']) ?>">
+                <a href="<?= View::escape(View::typeHref('/', $ep['type'] ?? 'movie', $ep['slug'])) ?>">
                     <div class="poster-box">
                         <?php if (!empty($ep['episode'] ?? '')): ?><span class="badge se-badge"><?= View::escape($ep['episode']) ?></span><?php endif; ?>
                         <?php if (!empty($ep['audio'] ?? '')): ?><span class="badge meta-badge"><?= View::escape($ep['audio']) ?></span><?php endif; ?><?php if (!empty($ep['year'] ?? '')): ?><?php if (!empty($ep['year'] ?? '')): ?><?php endif; ?><?php endif; ?>
@@ -238,7 +238,7 @@
     <div class="home-grid ep-landscape-grid">
         <?php foreach (array_slice($sec['items'] ?? [], 0, 12) as $ep): ?>
         <div class="anime-card ep-landscape-card">
-            <a href="<?= View::hurl('/') ?><?= View::escape($ep['slug']) ?>">
+            <a href="<?= View::escape(View::typeHref('/ep/', $ep['type'] ?? 'episode', $ep['slug'])) ?>">
                 <div class="ep-thumb">
                     <?php if (!empty($ep['episode'])): ?>
                     <span class="badge se-badge"><?= View::escape($ep['episode']) ?></span>
@@ -259,7 +259,7 @@
     <div class="home-grid">
         <?php foreach (array_slice($sec['items'] ?? [], 0, 12) as $ep): ?>
         <div class="anime-card">
-            <a href="<?= View::hurl('/') ?><?= View::escape($ep['slug']) ?>">
+            <a href="<?= View::escape(View::typeHref('/', $ep['type'] ?? '', $ep['slug'])) ?>">
                 <div class="poster-box">
                     <?php if (!empty($ep['episode'] ?? '')): ?><span class="badge se-badge"><?= View::escape($ep['episode']) ?></span><?php endif; ?>
                     <?php if (!empty($ep['audio'] ?? '')): ?><span class="badge meta-badge"><?= View::escape($ep['audio']) ?></span><?php endif; ?><?php if (!empty($ep['year'] ?? '')): ?><?php if (!empty($ep['year'] ?? '')): ?><?php endif; ?><?php endif; ?>
@@ -297,7 +297,7 @@
     <div id="top-10-wrapper">
         <div class="top-10-grid" id="top-grid-day">
             <?php foreach ($topDay as $anime): ?>
-            <a href="<?= View::hurl('/') ?><?= View::escape($anime['slug']) ?>" class="top-10-item">
+            <a href="<?= View::escape(View::typeHref('/', $anime['type'] ?? '', $anime['slug'])) ?>" class="top-10-item">
                 <div class="top-number"><?= str_pad((int)$anime['rank'], 2, '0', STR_PAD_LEFT) ?></div>
                 <img src="<?= $anime['image'] ?>" class="top-poster" loading="lazy" alt="poster">
                 <div class="top-info">
@@ -311,7 +311,7 @@
         </div>
         <div class="top-10-grid" id="top-grid-week" style="display: none !important;">
             <?php foreach ($topWeek as $anime): ?>
-            <a href="<?= View::hurl('/') ?><?= View::escape($anime['slug']) ?>" class="top-10-item">
+            <a href="<?= View::escape(View::typeHref('/', $anime['type'] ?? '', $anime['slug'])) ?>" class="top-10-item">
                 <div class="top-number"><?= str_pad((int)$anime['rank'], 2, '0', STR_PAD_LEFT) ?></div>
                 <img src="<?= $anime['image'] ?>" class="top-poster" loading="lazy" alt="poster">
                 <div class="top-info">
@@ -325,7 +325,7 @@
         </div>
         <div class="top-10-grid" id="top-grid-month" style="display: none !important;">
             <?php foreach ($topMonth as $anime): ?>
-            <a href="<?= View::hurl('/') ?><?= View::escape($anime['slug']) ?>" class="top-10-item">
+            <a href="<?= View::escape(View::typeHref('/', $anime['type'] ?? '', $anime['slug'])) ?>" class="top-10-item">
                 <div class="top-number"><?= str_pad((int)$anime['rank'], 2, '0', STR_PAD_LEFT) ?></div>
                 <img src="<?= $anime['image'] ?>" class="top-poster" loading="lazy" alt="poster">
                 <div class="top-info">

@@ -274,7 +274,7 @@ $router->post('/wp-admin/admin-ajax.php', function() {
             // animedekho search returns same card shape as toonstream
             $results = [];
             foreach ($data['results'] ?? $data['items'] ?? [] as $it) {
-                $results[] = ['slug' => $it['slug'] ?? pa_slug_from_url($it['url'] ?? ''), 'title' => $it['title'] ?? '', 'image' => $it['image'] ?? '/assets/images/placeholder.jpg', 'audio' => $it['audio'] ?? '', 'episode' => $it['episode'] ?? ''];
+                $results[] = ['slug' => $it['slug'] ?? pa_slug_from_url($it['url'] ?? ''), 'title' => $it['title'] ?? '', 'image' => $it['image'] ?? '/assets/images/placeholder.jpg', 'audio' => $it['audio'] ?? '', 'episode' => $it['episode'] ?? '', 'type' => $it['contentType'] ?? ($it['type'] ?? '')];
             }
             echo search_render_cards($results, 'Dub');
         } catch (\Throwable $e) {
@@ -333,7 +333,7 @@ function search_render_cards(array $results, string $typeText): string {
         $hasAudio = $audio !== '';
         $hasType = $typeText !== '' && !empty($r['episode']);
         $typeLabel = $hasType ? $typeText : '';
-        $cards[] = '<a href="' . htmlspecialchars(View::hurl('/' . ($r['slug'] ?? '')), ENT_QUOTES, 'UTF-8') . '" class="search-res-item" onclick="saveSearchHistory(\'' . addslashes($r['title'] ?? '') . '\')">' .
+        $cards[] = '<a href="' . htmlspecialchars(View::typeHref('/', $r['type'] ?? '', $r['slug'] ?? ''), ENT_QUOTES, 'UTF-8') . '" class="search-res-item" onclick="saveSearchHistory(\'' . addslashes($r['title'] ?? '') . '\')">' .
             '<div class="search-res-img"><img width="150" height="150" src="' . $image . '" alt="" loading="lazy"></div>' .
             '<div class="search-res-info">' .
             '<span class="res-title">' . $title . '</span>' .

@@ -46,7 +46,7 @@
                     </svg>
                 </div>
                 <div class="site-logo">
-                    <a href="/home">
+                    <a href="<?= View::hurl('/home') ?>">
 <img src="<?= View::escape(Config::get('logo')) ?>" alt="<?= View::escape(Config::get('site_name')) ?>">
                     </a>
                 </div>
@@ -122,7 +122,7 @@
     <div id="at-mobile-sidebar" class="ak-sidebar-wrapper">
         <div class="ak-sidebar-header">
             <div class="ak-sidebar-logo">
-                <a href="/home" style="display: flex; align-items: center; text-decoration: none;">
+                <a href="<?= View::hurl('/home') ?>" style="display: flex; align-items: center; text-decoration: none;">
                     <img src="<?= View::escape(Config::get('logo')) ?>" alt="<?= View::escape(Config::get('site_name')) ?>" style="max-width: 180px; max-height: 45px; width: auto; height: auto; object-fit: contain;">
                 </a>
             </div>

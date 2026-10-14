@@ -640,6 +640,7 @@ function api_home_data() {
                     'image' => $c['image'],
                     'logo' => '', // use title text
                     'audio' => $c['episode'],
+                    'type' => $c['type'] ?? '',
                     'genres' => '',
                     'description' => '',
                 ];
@@ -1356,6 +1357,7 @@ function api_search_spotlight() {
                     'logo' => $s['logo'],
                     'rank' => '#' . ($i + 1) . ' Spotlight',
                     'badge' => $s['audio'],
+                    'type' => $s['type'] ?? '',
                     'genres' => $s['genres'],
                     'desc' => $s['description'],
                     'watch' => '/' . $s['slug'] . '/',
@@ -1380,6 +1382,7 @@ function api_search_spotlight() {
                     'logo' => $s['logo'],
                     'rank' => '#' . ($i + 1) . ' Spotlight',
                     'badge' => $s['audio'],
+                    'type' => $s['type'] ?? '',
                     'genres' => $s['genres'],
                     'desc' => $s['description'],
                     'watch' => '/' . $s['slug'] . '/',
@@ -1404,6 +1407,7 @@ function api_search_spotlight() {
                     'logo' => $s['logo'],
                     'rank' => '#' . ($i + 1) . ' Spotlight',
                     'badge' => $s['audio'],
+                    'type' => $s['type'] ?? '',
                     'genres' => $s['genres'],
                     'desc' => $s['description'],
                     'watch' => '/' . $s['slug'] . '/',
@@ -1423,6 +1427,7 @@ function api_search_spotlight() {
             'logo' => $s['logo'],
             'rank' => '#' . ($i + 1) . ' Spotlight',
             'badge' => $s['audio'],
+            'type' => $s['type'] ?? '',
             'genres' => $s['genres'],
             'desc' => $s['description'],
             'watch' => '/' . $s['slug'] . '/',
@@ -1557,7 +1562,26 @@ function api_anime_data(string $slug) {
     if ($provider === 'animedekho') {
         // Strip any ?type= hint from the slug (Router already strips it for
         // web hits, but /api/* callers may pass it through).
+        $reqType = strtolower(trim((string) ($_GET['type'] ?? '')));
+        if ($reqType === '' && str_contains($slug, '?type=')) {
+            $reqType = strtolower(trim((string) explode('&', explode('?type=', $slug, 2)[1])[0]));
+        }
         $slug = preg_replace('/\?.*$/', '', $slug);
+        // ?type=movie opens the movie detail directly (no series probe first).
+        if ($reqType === 'movie' || $reqType === 'movies') {
+            $movie = api_try(function () use ($slug) {
+                pa_load_animedekho();
+                require_once ROOT_PATH . '/api/animedekho/app/autoload.php';
+                $http = new \AnimeDekhoApi\Utils\HttpClient();
+                $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
+                return $ad->movie($slug, null);
+            }, null);
+            if (is_array($movie) && !empty($movie['title'])) {
+                $movie['episodes'] = 1;
+                $movie['episodes_count'] = 1;
+                return pa_animedekho_anime($movie);
+            }
+        }
         $data = api_try(function () use ($slug) {
             pa_load_animedekho();
             require_once ROOT_PATH . '/api/animedekho/app/autoload.php';

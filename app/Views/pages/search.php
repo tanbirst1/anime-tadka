@@ -29,10 +29,10 @@ $latest = $latest ?? [];
                         </div>
                         <p class="sa-description"><?= View::escape($slide['desc']) ?></p>
                         <div class="sa-actions">
-                            <a href="<?= View::escape($slide['watch']) ?>" class="sa-btn-main">
+                            <a href="<?= View::escape(View::typeHref('/', $slide['type'] ?? 'series', trim((string) ($slide['watch'] ?? ''), '/'))) ?>" class="sa-btn-main">
                                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg> Watch Now
                             </a>
-                            <a href="<?= View::escape($slide['details']) ?>" class="sa-btn-alt"> Details
+                            <a href="<?= View::escape(View::typeHref('/', $slide['type'] ?? 'series', trim((string) ($slide['details'] ?? ''), '/'))) ?>" class="sa-btn-alt"> Details
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"></path></svg>
                             </a>
                         </div>
@@ -128,7 +128,7 @@ $latest = $latest ?? [];
         <div class="home-grid lat-target-grid" id="lat-grid-all" style="display: grid !important;">
             <?php foreach ($latest as $item): ?>
             <div class="anime-card">
-                <a href="/<?= View::escape($item['slug'] ?? '') ?>">
+                <a href="<?= View::escape(View::typeHref('/', $item['type'] ?? '', $item['slug'] ?? '')) ?>">
                     <div class="poster-box">
                         <span class="badge se-badge"><?= View::escape($item['episode'] ?? '') ?></span>
                         <span class="badge meta-badge"><?= View::escape($item['audio'] ?? '') ?></span>

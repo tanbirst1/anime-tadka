@@ -269,7 +269,7 @@ $recommendations = $episode['recommendations'] ?? [];
 
     <?php if (!empty($episode['prev_episode_url']) || !empty($episode['next_episode_url'])): ?>
     <div class="ep-nav-flex">
-        <?php if (!empty($episode['prev_episode_url'])): ?><a href="<?= View::hurl($episode['prev_episode_url']) ?>" class="nav-btn">← Previous</a><?php endif; ?><?php if (!empty($episode['next_episode_url'])): ?><a href="<?= View::hurl($episode['next_episode_url']) ?>" class="nav-btn" id="next-ep-btn">Next →</a><?php endif; ?>
+        <?php if (!empty($episode['prev_episode_url'])): ?><a href="<?= View::escape(View::hurl($episode['prev_episode_url']) . '?type=episode') ?>" class="nav-btn">← Previous</a><?php endif; ?><?php if (!empty($episode['next_episode_url'])): ?><a href="<?= View::escape(View::hurl($episode['next_episode_url']) . '?type=episode') ?>" class="nav-btn" id="next-ep-btn">Next →</a><?php endif; ?>
     </div>
     <?php endif; ?>
 
@@ -337,7 +337,7 @@ $recommendations = $episode['recommendations'] ?? [];
 
             <div class="ep-list-drawer-cinematic" id="ep-list">
                 <?php foreach ($episodes as $ep): ?>
-                    <a href="<?= View::hurl('/ep/') ?><?= View::escape($ep['hash']) ?>/" id="<?= View::escape($ep['num']) ?>" class="ep-row-premium<?= !empty($ep['active']) ? ' is-playing' : '' ?>" data-hash="<?= View::escape($ep['hash']) ?>" data-ep-num="<?= View::escape($ep['num']) ?>" data-num="<?= View::escape($ep['num']) ?>" data-anime="<?= View::escape($episode['animeSlug'] ?? '') ?>">
+                    <a href="<?= View::escape(View::hurl('/ep/') . View::escape($ep['hash']) . '/?type=episode') ?>" id="<?= View::escape($ep['num']) ?>" class="ep-row-premium<?= !empty($ep['active']) ? ' is-playing' : '' ?>" data-hash="<?= View::escape($ep['hash']) ?>" data-ep-num="<?= View::escape($ep['num']) ?>" data-num="<?= View::escape($ep['num']) ?>" data-anime="<?= View::escape($episode['animeSlug'] ?? '') ?>">
                         <div class="thumb-wrap">
                             <img src="<?= View::escape($ep['thumb']) ?>" loading="lazy" alt="E<?= View::escape($ep['num']) ?>">
                             <div class="watched-ribbon" style="display:none"><span>WATCHED</span></div>
@@ -433,7 +433,7 @@ $recommendations = $episode['recommendations'] ?? [];
     <h4 style="margin-top:50px;">OTHER SEASONS</h4>
     <div class="season-grid-cinematic">
         <?php foreach ($seasons as $s): ?>
-            <a href="<?= View::hurl('/ep/') ?><?= View::escape($s['hash']) ?>/" class="season-card-rect">
+            <a href="<?= View::escape(View::hurl('/ep/') . View::escape($s['hash']) . '/?type=episode') ?>" class="season-card-rect">
                 <div class="s-bg-blur" style="background-image: url('<?= View::escape($s['poster']) ?>');"></div>
                 <span class="s-label"><?= View::escape($s['title']) ?></span>
             </a>
@@ -451,7 +451,7 @@ $recommendations = $episode['recommendations'] ?? [];
             <div class="reco-slider" id="recoSlider">
                 <?php foreach ($recommendations as $r): ?>
                     <div class="reco-item">
-                        <a href="<?= View::hurl('/') ?><?= View::escape($r['slug']) ?>/">
+                        <a href="<?= View::escape(View::typeHref('/', $r['type'] ?? 'series', $r['slug'])) ?>">
                             <div class="reco-poster">
                                 <img width="200" height="300" src="<?= View::escape($r['poster']) ?>" loading="lazy" class="attachment-medium size-medium wp-post-image" alt="">
                                 <div class="reco-overlay"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg></div>
