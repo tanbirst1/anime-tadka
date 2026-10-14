@@ -560,7 +560,7 @@ function pa_animedekho_card(array $item): array {
         'idNormalized' => $idNormalized,
         'originalId' => $item['id'] ?? '',
         'episode' => $episode,
-        'audio' => $item['contentType'] === 'episode' ? 'Dub' : '',
+        'audio' => (string) ($item['audio'] ?? ''),
         'image' => $item['image'] ?? '/assets/images/placeholder.jpg',
         'href' => $item['url'] ?? '',
         'type' => $item['contentType'] ?? ($item['type'] ?? ''),
@@ -586,18 +586,18 @@ function pa_animedekho_anime(array $data): ?array {
         $seasonEps = [];
         foreach ($season['episodes'] ?? [] as $ep) {
             $epSlug = $ep['slug'] ?? pa_slug_from_url($ep['url'] ?? '');
-            $epNum = $ep['episodeNumber'] ?? '';
+            $epNum = $ep['label'] ?? ($ep['number'] ?? '');
             $allEpisodes[] = [
                 'slug' => $epSlug,
                 'number' => $epNum,
                 'title' => $ep['title'] ?? '',
-                'thumbnail' => $ep['image'] ?? '',
+                'thumbnail' => $ep['thumbnail'] ?? '',
                 'watched' => false,
             ];
             $seasonEps[] = [
-                'label' => ($ep['episodeNumber'] ?? '') . ' ' . ($ep['title'] ?? ''),
+                'label' => trim(($ep['label'] ?? '') . ' ' . ($ep['title'] ?? '')),
                 'url' => $ep['url'] ?? '',
-                'thumbnail' => $ep['image'] ?? '',
+                'thumbnail' => $ep['thumbnail'] ?? '',
             ];
         }
         $seasons[] = [

@@ -11,7 +11,7 @@ namespace AnimeDekhoApi\Core;
 final class Config
 {
     /** Base URL of the scraped site (override with ANIMEDEKHO_BASE_URL). */
-    public const BASE_URL = 'https://animedekho.app';
+    public const BASE_URL = 'https://animedekho.tv';
 
     public const PROVIDER = 'animedekho';
 

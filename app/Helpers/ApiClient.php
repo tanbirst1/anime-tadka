@@ -573,15 +573,67 @@ function api_home_data() {
             $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
             $raw = $ad->home();
             $sections = $raw['sections'] ?? [];
-            $allCards = [];
+
+            // Classify provider rows so their data stays in the right place.
+            $isEpisodeRow = static fn (string $t): bool => stripos($t, 'episode') !== false;
+            $isTopRow = static fn (string $t): bool => (bool) preg_match('/top\s*\d|top\s*rated|most\s*(viewed|popular)|trending/i', $t);
+
+            // One card per title (sections overlap; e.g. a series appears in both
+            // "New series" and a Top row).
+            $dedupe = static function (array $cards): array {
+                $out = [];
+                $seen = [];
+                foreach ($cards as $c) {
+                    $key = ($c['slug'] ?? '') !== '' ? $c['slug'] : ($c['title'] ?? '');
+                    if ($key === '' || isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+                    $out[] = $c;
+                }
+                return $out;
+            };
+
+            // Every provider row keeps its own section, so "Latest episodes",
+            // "New series", "New movies" and the Top rows each render once with
+            // their own data — nothing is merged together.
+            $extraSections = [];
+            $latestSeries = [];
+            $latestMovies = [];
             foreach ($sections as $sec) {
+                $title = $sec['title'] ?? 'Section';
+                $items = [];
                 foreach ($sec['items'] ?? [] as $it) {
-                    $allCards[] = pa_animedekho_card($it);
+                    $items[] = pa_animedekho_card($it);
+                }
+                if (!$items) continue;
+                // "standalone" rows render as their own section. The episode row
+                // and the Top/top-rated rows do; "New series"/"New movies" do not,
+                // because their items ARE the Latest Animes grid (avoids showing
+                // the same titles twice).
+                $standalone = $isEpisodeRow($title) || $isTopRow($title);
+                $extraSections[] = ['title' => $title, 'items' => $items, 'standalone' => $standalone];
+
+                // "Latest Animes" is ONLY the latest series/movies: never the
+                // episode row and never the Top-10/top-rated rows (that data
+                // already has its own section and must not leak into Latest Animes).
+                if ($isEpisodeRow($title) || $isTopRow($title)) {
+                    continue;
+                }
+                if (stripos($title, 'movie') !== false) {
+                    $latestMovies = array_merge($latestMovies, $items);
+                } else {
+                    $latestSeries = array_merge($latestSeries, $items);
                 }
             }
-            // spotlight: first 6, use title text (no logo), latest + extra sections
+
+            $latestSeries = $dedupe($latestSeries);
+            $latestMovies = $dedupe($latestMovies);
+            $latestAll = $dedupe(array_merge($latestSeries, $latestMovies));
+
+            // spotlight: first 6 of the latest list, use title text (no logo)
             $spotlight = [];
-            foreach (array_slice($allCards, 0, 6) as $c) {
+            foreach (array_slice($latestAll, 0, 6) as $c) {
                 $spotlight[] = [
                     'title' => $c['title'],
                     'slug' => $c['slug'],
@@ -592,28 +644,9 @@ function api_home_data() {
                     'description' => '',
                 ];
             }
-            // Build extraSections from raw sections and split movies/series
-            $extraSections = [];
-            $movies = [];
-            $series = [];
-            foreach ($sections as $sec) {
-                $title = $sec['title'] ?? 'Section';
-                $items = [];
-                foreach ($sec['items'] ?? [] as $it) {
-                    $items[] = pa_animedekho_card($it);
-                }
-                if (!$items) continue;
-                $extraSections[] = ['title' => $title, 'items' => $items];
-                if (stripos($title, 'movie') !== false) {
-                    $movies = array_merge($movies, $items);
-                } else {
-                    $series = array_merge($series, $items);
-                }
-            }
-            if (!$series) $series = $allCards;
             return [
                 'spotlight' => $spotlight,
-                'latest' => ['all' => $allCards, 'series' => $series, 'movies' => $movies],
+                'latest' => ['all' => $latestAll, 'series' => $latestSeries, 'movies' => $latestMovies],
                 'extraSections' => $extraSections,
                 'top' => ['day' => [], 'week' => [], 'month' => []],
             ];
@@ -840,6 +873,31 @@ function api_all_items(int $page = 1) {
         ];
     }
 
+    // ── Animedekho: browse grid (paginated) ─────────────────────────
+    if ($provider === 'animedekho') {
+        $data = api_try(function () use ($page) {
+            pa_load_animedekho();
+            require_once ROOT_PATH . '/api/animedekho/app/autoload.php';
+            $http = new \AnimeDekhoApi\Utils\HttpClient();
+            $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
+            return $ad->listing('/browse/', $page);
+        }, null);
+        if (!is_array($data)) {
+            return ['items' => [], 'pagination' => ['current' => $page, 'total' => 1]];
+        }
+        $items = [];
+        foreach ($data['items'] ?? [] as $item) {
+            $items[] = pa_animedekho_card($item);
+        }
+        return [
+            'items' => $items,
+            'pagination' => [
+                'current' => $data['page'] ?? $page,
+                'total' => $data['totalPages'] ?? 1,
+            ],
+        ];
+    }
+
     // ── Animetadka (default) ────────────────────────────────────────
     $data = api_try(fn () => api_scraper()->getAllAnimes($page), null);
     if (!is_array($data)) {
@@ -926,6 +984,31 @@ function api_letter_items(string $letter, int $page = 1, string $filter = '') {
         $items = [];
         foreach ($data['items'] ?? [] as $item) {
             $items[] = pa_watchhentai_card($item);
+        }
+        return [
+            'items' => $items,
+            'pagination' => [
+                'current' => $data['page'] ?? $page,
+                'total' => $data['totalPages'] ?? 1,
+            ],
+        ];
+    }
+
+    // ── Animedekho: browse by letter ────────────────────────────────
+    if ($provider === 'animedekho') {
+        $data = api_try(function () use ($letter, $page) {
+            pa_load_animedekho();
+            require_once ROOT_PATH . '/api/animedekho/app/autoload.php';
+            $http = new \AnimeDekhoApi\Utils\HttpClient();
+            $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
+            return $ad->listing('/browse/', $page, ['letter' => $letter]);
+        }, null);
+        if (!is_array($data)) {
+            return ['items' => [], 'pagination' => ['current' => $page, 'total' => 1]];
+        }
+        $items = [];
+        foreach ($data['items'] ?? [] as $item) {
+            $items[] = pa_animedekho_card($item);
         }
         return [
             'items' => $items,
@@ -1136,13 +1219,15 @@ function api_category_data(string $type, string $slug, int $page = 1, string $fi
                 ];
             }
 
-            $path = '/category/' . \AnimeDekhoApi\Utils\Url::encodePath($slug);
+            // Type/genre/season all map to the site's /browse/ grid, which
+            // accepts type, genre and pg params (type=movies|series|all).
+            $params = [];
             if ($type === 'type') {
-                $path = '/type/' . \AnimeDekhoApi\Utils\Url::encodePath($slug);
+                $params['type'] = in_array($slug, ['movie', 'movies'], true) ? 'movies' : ($slug === 'tv' ? 'series' : $slug);
             } elseif ($type === 'genre') {
-                $path = '/genre/' . \AnimeDekhoApi\Utils\Url::encodePath($slug);
+                $params['genre'] = $slug;
             }
-            $listing = $ad->listing($path, $page);
+            $listing = $ad->listing('/browse/', $page, $params);
             $items = [];
             foreach ($listing['items'] ?? [] as $item) {
                 $items[] = pa_animedekho_card($item);
@@ -1219,6 +1304,22 @@ function api_search_items(string $query) {
             $wh = new \WatchHentaiApi\Providers\WatchHentai($http, \WatchHentaiApi\Core\Config::baseUrl());
             $data = $wh->search($query);
             return pa_watchhentai_search($data);
+        }, []);
+    }
+
+    // ── Animedekho ──────────────────────────────────────────────────
+    if ($provider === 'animedekho') {
+        return api_try(function () use ($query) {
+            pa_load_animedekho();
+            require_once ROOT_PATH . '/api/animedekho/app/autoload.php';
+            $http = new \AnimeDekhoApi\Utils\HttpClient();
+            $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
+            $data = $ad->search($query);
+            $items = [];
+            foreach ($data['results'] ?? [] as $r) {
+                $items[] = pa_animedekho_card($r);
+            }
+            return $items;
         }, []);
     }
 

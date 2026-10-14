@@ -10,6 +10,19 @@ class HomeController {
         // Spotlight limit 4-6 already enforced in adapters, but ensure here too
         $spotlight = array_slice($home['spotlight'] ?? [], 0, 6);
 
+        // Put the "Latest episodes" row first (top of the Latest Animes block);
+        // the provider's other category rows keep their original order.
+        $episodes = [];
+        $rest = [];
+        foreach ($home['extraSections'] ?? [] as $sec) {
+            if (stripos($sec['title'] ?? '', 'episode') !== false) {
+                $episodes[] = $sec;
+            } else {
+                $rest[] = $sec;
+            }
+        }
+        $extraSections = array_merge($episodes, $rest);
+
         $data = [
             'title' => Config::get('site_name') . ' - Your Ultimate Destination for Premium Regional Dubbed Anime',
             'spotlight' => $spotlight,
@@ -19,7 +32,7 @@ class HomeController {
             'topDay' => $home['top']['day'] ?? [],
             'topWeek' => $home['top']['week'] ?? [],
             'topMonth' => $home['top']['month'] ?? [],
-            'extraSections' => $home['extraSections'] ?? [],
+            'extraSections' => $extraSections,
             'provider' => api_provider(),
         ];
 

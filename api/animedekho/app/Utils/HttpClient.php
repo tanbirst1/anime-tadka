@@ -109,6 +109,89 @@ final class HttpClient
     }
 
     /**
+     * POST a JSON body and return the decoded response. Used for the site's
+     * dgt REST API (wp-json/dgt/v1/...). Returns null on any non-2xx reply
+     * or when the body is not valid JSON.
+     *
+     * @param array<string, mixed> $body
+     * @param array<string, string> $headers extra request headers
+     * @return array<string, mixed>|null
+     */
+    public function postJson(string $url, array $body, array $headers = []): ?array
+    {
+        $payload = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($payload === false) {
+            return null;
+        }
+
+        $response = $this->requestPost($url, $payload, $headers, $status);
+        if ($response === null || $status < 200 || $status >= 300) {
+            return null;
+        }
+        $data = json_decode($response, true);
+        return is_array($data) ? $data : null;
+    }
+
+    /** @param array<string, string> $headers */
+    private function requestPost(string $url, string $payload, array $headers, ?int &$status): ?string
+    {
+        if (!function_exists('curl_init') || !function_exists('curl_setopt_array')) {
+            return $this->requestPostViaStream($url, $payload, $headers, $status);
+        }
+
+        $ch = $this->handle($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => array_merge([
+                'Content-Type: application/json',
+                'Accept: application/json, text/plain, */*',
+            ], $headers),
+        ]);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        if ($body === false || $body === '') {
+            return null;
+        }
+        return $body;
+    }
+
+    /** @param array<string, string> $headers */
+    private function requestPostViaStream(string $url, string $payload, array $headers, ?int &$status): ?string
+    {
+        $headerLines = array_merge([
+            'Content-Type: application/json',
+            'Accept: application/json, text/plain, */*',
+            'User-Agent: ' . Config::USER_AGENT,
+            'Connection: close',
+        ], array_map(static fn ($k, $v): string => $k . ': ' . $v, array_keys($headers), array_values($headers)));
+
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'timeout' => Config::timeout(),
+                'follow_location' => 1,
+                'max_redirects' => 5,
+                'ignore_errors' => true,
+                'header' => implode("\r\n", $headerLines) . "\r\n",
+                'content' => $payload,
+            ],
+        ]);
+        $body = @file_get_contents($url, false, $context);
+        $status = 0;
+        foreach ($http_response_header ?? [] as $line) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $line, $m) === 1) {
+                $status = (int) $m[1];
+            }
+        }
+        if ($body === false || $body === '') {
+            return null;
+        }
+        return $body;
+    }
+
+    /**
      * Drop every stored cookie (deletes the jar file). Used by the /token
      * endpoint so it always observes the site's real gated state and hands
      * out fresh verify links; all other endpoints keep the shared jar and
