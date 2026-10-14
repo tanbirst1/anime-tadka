@@ -151,19 +151,53 @@ class PlayerController {
             echo 'Missing url';
             return;
         }
-        // Only proxy media hosts, never arbitrary URLs.
+        // Only proxy media hosts, never arbitrary URLs. Known media/player
+        // CDNs used by the providers are allowlisted so the required Referer
+        // (hotlink protection) is applied; anything else redirects to the raw
+        // URL rather than 403-ing playback dead.
         $host = strtolower((string) parse_url($url, PHP_URL_HOST));
-        if ($host === '' || (!str_contains($host, 'hstorage') && !str_contains($host, 'watchhentai'))) {
-            // CDN host not on the allowlist (e.g. upstream changed host):
-            // instead of 403-ing playback dead, redirect to the raw URL so
-            // the video can still play direct.
+        $allowed = $host !== '' && (
+            str_contains($host, 'hstorage')
+            || str_contains($host, 'watchhentai')
+            || str_contains($host, 'abyssplayer')
+            || str_contains($host, 'rubystm')
+            || str_contains($host, 'streamruby')
+            || str_contains($host, 'vidmoly')
+            || str_contains($host, 'vidara')
+            || str_contains($host, 'voe.')
+            || str_contains($host, 'upns.pro')
+            || str_contains($host, 'animeworld')
+            || str_contains($host, 'animedekho')
+            || str_contains($host, 'trycloudflare.com')
+            || str_contains($host, 'workers.dev')
+            || str_contains($host, 'xerver.xyz')
+            || str_contains($host, 'r2.dev')
+            || str_contains($host, 'ravok')
+            || str_contains($host, 'openx')
+            || str_contains($host, 'hubcloud')
+            || str_contains($host, 'gdflix')
+        );
+        if (!$allowed) {
             header('Location: ' . $url, true, 302);
             return;
         }
 
+        // Match the Referer to the media host: animedekho's CDNs enforce their
+        // own site's referer, so a blanket watchhentai referer would 403 them.
+        $referer = (str_contains($host, 'animedekho') || str_contains($host, 'trycloudflare.com')
+            || str_contains($host, 'workers.dev') || str_contains($host, 'upns.pro')
+            || str_contains($host, 'abyssplayer') || str_contains($host, 'rubystm')
+            || str_contains($host, 'streamruby')
+            || str_contains($host, 'vidmoly') || str_contains($host, 'vidara')
+            || str_contains($host, 'voe.') || str_contains($host, 'animeworld') || str_contains($host, 'xerver.xyz')
+            || str_contains($host, 'r2.dev') || str_contains($host, 'ravok') || str_contains($host, 'openx')
+            || str_contains($host, 'hubcloud') || str_contains($host, 'gdflix'))
+            ? 'https://animedekho.tv/'
+            : 'https://watchhentai.net/';
+
         $clientRange = trim((string) ($_SERVER['HTTP_RANGE'] ?? ''));
         $baseHeaders = [
-            'Referer: https://watchhentai.net/',
+            'Referer: ' . $referer,
             'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         ];
         // Forward the client's If-Range so a mid-download seek validates the

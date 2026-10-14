@@ -684,18 +684,37 @@ function pa_animedekho_anime(array $data): ?array {
  * Movies always have exactly 1 playable episode (the movie itself).
  */
 function pa_animedekho_movie(array $data, string $slug): ?array {
-    $servers = [];
+    $streamServers = [];
+    $downloadServers = [];
     foreach ($data['servers'] ?? [] as $i => $s) {
         if (!is_array($s)) continue;
-        $servers[] = [
-            'name'   => $s['name'] ?? ('Server ' . ($i + 1)),
-            'active' => $i === 0,
-            'url'    => $s['src'] ?? ($s['url'] ?? ''),
-            'source' => $s['originalSrc'] ?? $s['src'] ?? ($s['source'] ?? null),
-            'auto'   => false,
-            'cdn21'  => false,
-        ];
+        // A REST row may be an embed (streamable) and/or a download. Twin
+        // rows are emitted twice (one show_embed, one show_download), so read
+        // the two flags independently: otherwise download-only rows such as
+        // GDFlix/Hubcloud leak into the streaming tab list.
+        $showEmbed = array_key_exists('showEmbed', $s) ? (bool) $s['showEmbed'] : (($s['kind'] ?? 'embed') !== 'download');
+        $showDownload = array_key_exists('showDownload', $s) ? (bool) $s['showDownload'] : (($s['download'] ?? '') !== '');
+        $source = $s['originalSrc'] ?? $s['src'] ?? ($s['source'] ?? null);
+        if ($showEmbed) {
+            $streamServers[] = [
+                'name'   => $s['name'] ?? ('Server ' . ($i + 1)),
+                'active' => count($streamServers) === 0,
+                'url'    => $s['src'] ?? ($s['url'] ?? ''),
+                'source' => $source,
+                'auto'   => false,
+                'cdn21'  => false,
+            ];
+        }
+        if ($showDownload) {
+            $downloadServers[] = [
+                'name'    => $s['name'] ?? ('Download ' . ($i + 1)),
+                'url'     => $s['downloadSrc'] ?? $s['download'] ?? '',
+                'quality' => $s['quality'] ?? '',
+                'language' => $s['language'] ?? '',
+            ];
+        }
     }
+    $servers = $streamServers;
 
     $playerSource = '';
     if (!empty($servers)) {
@@ -718,6 +737,7 @@ function pa_animedekho_movie(array $data, string $slug): ?array {
         'next_episode_url' => '',
         'prev_episode_url' => '',
         'download_links' => [],
+        'download_servers' => $downloadServers,
         'servers' => $servers,
         'episodes' => [],
         'seasons' => [],

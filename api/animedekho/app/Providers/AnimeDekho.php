@@ -565,12 +565,27 @@ final class AnimeDekho
                 continue;
             }
             $download = (string) ($source['download'] ?? '');
+            $kind = (string) ($source['kind'] ?? 'embed');
+            // REST marks each source as an embed (streamable) and/or a
+            // download (a download.php|download2.php link). Twin entries are
+            // emitted twice: one show_embed row and one show_download row, so
+            // the two roles must be read separately or download-only servers
+            // leak into the streaming tab list.
+            $showEmbed = array_key_exists('show_embed', $source)
+                ? (bool) $source['show_embed']
+                : ($kind !== 'download');
+            $showDownload = array_key_exists('show_download', $source)
+                ? (bool) $source['show_download']
+                : ($download !== '');
             $servers[] = [
                 'serverNumber' => $index,
                 'displayNumber' => $index + 1,
                 'name' => (string) ($source['server'] ?? ('Server ' . ($index + 1))),
                 'src' => $embed,
                 'download' => $download,
+                'kind' => $kind,
+                'showEmbed' => $showEmbed,
+                'showDownload' => $showDownload,
                 'language' => (string) ($source['language'] ?? ''),
                 'quality' => (string) ($source['quality'] ?? ''),
                 'originalSrc' => null,
@@ -798,22 +813,139 @@ final class AnimeDekho
      */
     private function withOriginalSrcs(array $servers): array
     {
-        $wrapperUrls = [];
+        // Wrapper pages (player.php / play2.php) are followed up to a few
+        // hops: player.php -> aaa/get/play.php -> real file, and play2.php
+        // wraps a fetch.php JSON API. Anything not on the site's own host is
+        // treated as the final embed/player URL (can't be fetched from here).
+        $pending = [];
         foreach ($servers as $server) {
             $src = $server['src'] ?? null;
             if (is_string($src) && $src !== '' && $this->isWrapperSrc($src)) {
-                $wrapperUrls[] = $src;
+                $pending[] = $src;
             }
         }
-        $bodies = $wrapperUrls !== [] ? $this->http->getMany(array_values(array_unique($wrapperUrls)), 6) : [];
+        $jsonCache = [];
+        $bodies = $this->fetchWrappers($pending, 2, $jsonCache);
+
+        // Resolve download endpoints (download.php / download2.php) in one
+        // batch: each points at an intermediate file.php link or an external
+        // mirror that serves the actual file.
+        $dlUrls = [];
+        foreach ($servers as $server) {
+            $dl = $server['download'] ?? null;
+            if (is_string($dl) && $dl !== '' && $this->isWrapperSrc($dl)) {
+                $dlUrls[] = $dl;
+            }
+        }
+        $dlBodies = $this->fetchWrappers($dlUrls, 1, $jsonCache);
+
         foreach ($servers as &$server) {
             $src = $server['src'] ?? null;
             if (is_string($src) && $src !== '' && isset($bodies[$src]) && $bodies[$src] !== null) {
-                $server['originalSrc'] = $this->embedOriginalSrc($src, (string) $bodies[$src]);
+                $server['originalSrc'] = $this->resolveSrc($src, $bodies, $jsonCache, 4);
+            }
+            $dl = $server['download'] ?? null;
+            if (is_string($dl) && $dl !== '' && isset($dlBodies[$dl]) && $dlBodies[$dl] !== null) {
+                $server['downloadSrc'] = $this->resolveDownloadHref($dl, (string) $dlBodies[$dl]) ?? $dl;
             }
         }
         unset($server);
         return $servers;
+    }
+
+    /**
+     * Fetch wrapper URLs plus their same-site wrappers, parallel per level.
+     * Also pre-fetches each level's JSON source API into `$jsonCache` so the
+     * per-server walk never issues a sequential request.
+     */
+    private function fetchWrappers(array $urls, int $depth, array &$jsonCache): array
+    {
+        $urls = array_values(array_unique(array_filter($urls)));
+        $out = [];
+        while ($depth-- > 0 && $urls !== []) {
+            $bodies = $this->http->getMany($urls, 6);
+            $next = [];
+            $jsonUrls = [];
+            foreach ($urls as $url) {
+                $body = $bodies[$url] ?? null;
+                if ($body === null) {
+                    continue;
+                }
+                $out[$url] = $body;
+                foreach ($this->wrapperJsonCandidates($url, $body) as $j) {
+                    if (!array_key_exists($j, $jsonCache)) {
+                        $jsonUrls[$j] = true;
+                    }
+                }
+                foreach ($this->nextWrapperUrls($url, $body) as $n) {
+                    if (!isset($out[$n]) && !in_array($n, $next, true)) {
+                        $next[] = $n;
+                    }
+                }
+            }
+            if ($jsonUrls !== []) {
+                $jbodies = $this->http->getMany(array_keys($jsonUrls), 6);
+                foreach ($jbodies as $u => $b) {
+                    $decoded = is_string($b) ? json_decode($b, true) : null;
+                    $jsonCache[$u] = is_array($decoded) ? $decoded : null;
+                }
+            }
+            $urls = $next;
+        }
+        return $out;
+    }
+
+    /** Same-site wrapper URLs referenced by a wrapper body (one hop). */
+    private function nextWrapperUrls(string $base, string $html): array
+    {
+        $found = [];
+        $xp = Dom::xp(Dom::load($html));
+        foreach (Dom::q($xp, '//iframe[@src]') as $frame) {
+            $src = Dom::attr($frame, 'src');
+            if ($src === null || $src === '') {
+                continue;
+            }
+            $abs = Url::absolute($base, $src);
+            if ($abs !== null && $this->isSameBase($abs) && $this->isWrapperSrc($abs)) {
+                $found[] = $abs;
+            }
+        }
+        return $found;
+    }
+
+    /** Whether a URL is on the provider's own host. */
+    private function isSameBase(string $url): bool
+    {
+        return str_starts_with($url, $this->base);
+    }
+
+    /** Scheme+host of a URL, used to resolve relative paths without query. */
+    private function originOf(string $url): string
+    {
+        $p = parse_url($url);
+        return ($p['scheme'] ?? 'https') . '://' . ($p['host'] ?? '');
+    }
+
+    /** Resolve a download wrapper page to its actual download target. */
+    private function resolveDownloadHref(string $base, string $html): ?string
+    {
+        // Self-hosted downloads point at file.php. Hosted mirrors (gdflix,
+        // hubcloud, …) hand back an external URL, so accept any absolute link
+        // that is not the provider's own page.
+        $xp = Dom::xp(Dom::load($html));
+        foreach (Dom::q($xp, '//a[@href]') as $a) {
+            $href = Dom::attr($a, 'href');
+            if ($href === null || $href === '') {
+                continue;
+            }
+            if (str_contains($href, '/file.php')) {
+                return Url::absolute($base, $href);
+            }
+            if (preg_match('#^https?://#i', $href) && !str_starts_with($href, $this->base)) {
+                return $href;
+            }
+        }
+        return null;
     }
 
     /** Whether a server src is one of the site's own player wrappers. */
@@ -821,29 +953,157 @@ final class AnimeDekho
     {
         return str_starts_with($src, $this->base . '/player.php')
             || str_contains($src, '/player.php?url=')
-            || str_contains($src, '/aaa/myth/play2.php');
+            || str_contains($src, '/aaa/myth/play2.php')
+            || str_contains($src, '/aaa/myth/dl2.php')
+            || str_contains($src, '/download.php?')
+            || str_contains($src, '/download2.php?')
+            || str_starts_with($src, $this->base . '/aaa/get/')
+            || str_starts_with($src, $this->base . '/embed/');
     }
 
     /**
-     * Extract the nested player URL from a wrapper page: the first external
-     * iframe src (or an explicit `file:` JS source) points at the real player.
+     * Walk a wrapper chain to the final playable URL. `$bodies` holds the
+     * fetched HTML of each wrapper (keyed by URL); each hop's body is scanned
+     * for the next URL. A hop to another same-site wrapper continues; anything
+     * else (external player/embed or a raw media file) is the result.
      */
-    private function embedOriginalSrc(string $embedUrl, string $html): ?string
+    private function resolveSrc(string $src, array $bodies, array $jsonCache, int $depth): ?string
     {
-        $xp = Dom::xp(Dom::load($html));
-        foreach (Dom::q($xp, '//iframe[@src]') as $frame) {
-            $src = Dom::attr($frame, 'src') ?? Dom::attr($frame, 'data-src');
-            if ($src !== null && $src !== '' && !str_starts_with($src, $this->base)) {
-                return Url::absolute($embedUrl, $src);
+        while ($depth-- > 0) {
+            $body = $bodies[$src] ?? null;
+            if ($body === null) {
+                return null;
             }
+            $next = $this->extractFromBody($src, (string) $body, $jsonCache);
+            if ($next === null || $next === $src) {
+                return null;
+            }
+            if ($this->isWrapperSrc($next)) {
+                $src = $next;
+                continue;
+            }
+            return $next;
         }
-        if (preg_match("#file\s*:\s*[\"']([^\"']+)[\"']#i", $html, $m)) {
-            $file = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5);
-            if (preg_match('#^https?://#i', $file) && !str_starts_with($file, $this->base)) {
+        return null;
+    }
+
+    /**
+     * Extract the next playable/player URL from one wrapper body: a fetch()
+     * JSON API (fetch.php / the wrapper's own URL with &fetch=1), an explicit
+     * `file:` JS source, the first iframe src, or a raw media URL. May return
+     * another same-site wrapper URL for the caller to follow.
+     */
+    private function extractFromBody(string $embedUrl, string $html, array $jsonCache): ?string
+    {
+        // Wrapper pages resolve their sources through a JSON API called with
+        // fetch()/ajax: either an explicit fetch.php endpoint (play2.php) or
+        // the wrapper's own URL with &fetch=1 (aaa/get/play.php).
+        foreach ($this->wrapperJsonCandidates($embedUrl, $html) as $jurl) {
+            $json = $jsonCache[$jurl] ?? null;
+            if (!is_array($json)) {
+                continue;
+            }
+            $file = $this->pickFile($json['sources'] ?? null)
+                ?? $this->pickResults($json['results'] ?? null);
+            if ($file !== null) {
                 return $file;
             }
         }
+        // Explicit `file:` JSON/JS source (some wrappers inline it).
+        if (preg_match('#file\s*:\s*(?:\[[^\]]*?)?[\"\']([^\"\']+)#i', $html, $m)) {
+            $file = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5);
+            if (preg_match('#^https?://#i', $file)) {
+                return $file;
+            }
+        }
+        // An iframe src: another same-site wrapper (continue) or the external
+        // player (stop).
+        $xp = Dom::xp(Dom::load($html));
+        foreach (Dom::q($xp, '//iframe[@src]') as $frame) {
+            $src = Dom::attr($frame, 'src') ?? Dom::attr($frame, 'data-src');
+            if ($src !== null && $src !== '') {
+                $abs = Url::absolute($embedUrl, $src);
+                if ($abs !== null) {
+                    return $abs;
+                }
+            }
+        }
+        // Last: a raw media URL anywhere in the body.
+        if (preg_match('#https?://[^\s"\'<>\\\\]+\.(?:m3u8|mp4|webm)[^\s"\'<>\\\\]*#i', $html, $m)) {
+            return $m[0];
+        }
         return null;
+    }
+
+    /** Pick the smallest/plainest file from a playerjs sources array. */
+    private function pickFile($sources): ?string
+    {
+        if (!is_array($sources) || $sources === []) {
+            return null;
+        }
+        $best = null;
+        foreach ($sources as $s) {
+            $url = is_array($s) ? ($s['url'] ?? $s['file'] ?? '') : (string) $s;
+            if (!is_string($url) || $url === '' || !preg_match('#^https?://#i', $url)) {
+                continue;
+            }
+            // Prefer non-HEVC; otherwise keep the first.
+            if ($best === null) {
+                $best = $url;
+            }
+            if (!str_contains(strtolower($url), 'hevc')) {
+                return $url;
+            }
+        }
+        return $best;
+    }
+
+    /** Pick a file URL from a {name: {url,label}} results map. */
+    private function pickResults($results): ?string
+    {
+        if (!is_array($results)) {
+            return null;
+        }
+        // Prefer direct/cloud sources over download mirrors.
+        $order = ['cloud_r2', 'direct_mgt', 'instant_dl'];
+        foreach ($order as $key) {
+            $url = $results[$key]['url'] ?? null;
+            if (is_string($url) && preg_match('#^https?://#i', $url)) {
+                return $url;
+            }
+        }
+        foreach ($results as $r) {
+            $url = is_array($r) ? ($r['url'] ?? null) : null;
+            if (is_string($url) && preg_match('#^https?://#i', $url)) {
+                return $url;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Candidate JSON source APIs for a wrapper page. Handles the two shapes
+     * seen in the wild: an explicit fetch("…/fetch.php?id=…") call, and the
+     * wrapper's own URL re-requested with &fetch=1. Returns the list of
+     * absolute same-site URLs whose JSON holds the sources.
+     */
+    private function wrapperJsonCandidates(string $embedUrl, string $html): array
+    {
+        $candidates = [];
+        if (preg_match('#fetch\(\s*["\']([^"\']+)["\']#i', $html, $m)) {
+            $raw = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5);
+            // Skip the self-referential `?url=…&fetch=1` style: handled below.
+            if (!str_starts_with($raw, '?')) {
+                $abs = Url::absolute($this->originOf($embedUrl), $raw);
+                if ($abs !== null && $this->isSameBase($abs)) {
+                    $candidates[] = $abs;
+                }
+            }
+        }
+        if (str_contains($html, 'fetch(') && str_contains($html, 'fetch=1') && str_contains($embedUrl, '?')) {
+            $candidates[] = $embedUrl . '&fetch=1';
+        }
+        return array_values(array_unique($candidates));
     }
 
     /**

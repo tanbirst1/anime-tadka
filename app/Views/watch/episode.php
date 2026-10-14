@@ -183,6 +183,90 @@ $recommendations = $episode['recommendations'] ?? [];
         <?php endforeach; ?>
     </div>
 
+    <?php
+    // Download servers are kept out of the streaming tabs and surfaced behind
+    // a single Download button that opens a modal listing every quality.
+    $downloadServers = $episode['download_servers'] ?? [];
+    if (empty($downloadServers)) {
+        foreach (($episode['download_links'] ?? []) as $dl) {
+            if (!is_array($dl) || empty($dl['url'])) continue;
+            $downloadServers[] = [
+                'name' => $dl['label'] ?? 'Download',
+                'url' => $dl['url'],
+                'quality' => '',
+                'language' => '',
+            ];
+        }
+    }
+    ?>
+    <?php if (!empty($downloadServers)): ?>
+    <div class="dl-actions">
+        <button type="button" class="dl-open-btn" id="dl-open-btn" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Download</span>
+            <span class="dl-open-count"><?= count($downloadServers) ?></span>
+        </button>
+    </div>
+    <div class="dl-modal" id="dl-modal" role="dialog" aria-modal="true" aria-label="Download servers" hidden>
+        <div class="dl-modal-backdrop" data-dl-close></div>
+        <div class="dl-modal-panel">
+            <div class="dl-modal-head">
+                <h3>Download Servers</h3>
+                <button type="button" class="dl-modal-x" data-dl-close aria-label="Close">&times;</button>
+            </div>
+            <div class="dl-modal-list">
+                <?php foreach ($downloadServers as $dl): ?>
+                <a class="dl-item" href="<?= View::escape($dl['url']) ?>" target="_blank" rel="noopener noreferrer nofollow">
+                    <span class="dl-item-name"><?= View::escape($dl['name'] ?: 'Download') ?></span>
+                    <span class="dl-item-meta">
+                        <?php if (!empty($dl['quality'])): ?><span class="dl-tag"><?= View::escape($dl['quality']) ?></span><?php endif; ?>
+                        <?php if (!empty($dl['language'])): ?><span class="dl-tag"><?= View::escape($dl['language']) ?></span><?php endif; ?>
+                    </span>
+                    <svg class="dl-item-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var openBtn = document.getElementById('dl-open-btn');
+        var modal = document.getElementById('dl-modal');
+        if (!openBtn || !modal) return;
+        function open() { modal.hidden = false; document.body.style.overflow = 'hidden'; }
+        function close() { modal.hidden = true; document.body.style.overflow = ''; }
+        openBtn.addEventListener('click', open);
+        modal.addEventListener('click', function (e) { if (e.target.hasAttribute('data-dl-close')) close(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+    })();
+    </script>
+    <?php endif; ?>
+
+    <?php if (!empty($downloadServers)): ?>
+    <style>
+        .dl-actions { display: flex; justify-content: center; margin: 4px 0 22px; }
+        .dl-open-btn { display: inline-flex; align-items: center; gap: 9px; background: linear-gradient(135deg, #9b59b6, #7d3c98); color: #fff; border: 0; border-radius: 14px; padding: 12px 26px; font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 5px 15px rgb(155 89 182 / .4); transition: transform .15s ease, box-shadow .15s ease; }
+        .dl-open-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgb(155 89 182 / .55); }
+        .dl-open-btn svg { width: 18px; height: 18px; }
+        .dl-open-count { background: rgb(0 0 0 / .3); border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 800; }
+        .dl-modal[hidden] { display: none; }
+        .dl-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .dl-modal-backdrop { position: absolute; inset: 0; background: rgb(0 0 0 / .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+        .dl-modal-panel { position: relative; width: 100%; max-width: 460px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; background: #14141c; border: 1px solid rgb(255 255 255 / .1); border-radius: 18px; box-shadow: 0 24px 70px rgb(0 0 0 / .55); }
+        .dl-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid rgb(255 255 255 / .08); }
+        .dl-modal-head h3 { margin: 0; font-size: 16px; font-weight: 800; color: #fff; }
+        .dl-modal-x { background: none; border: 0; color: #999; font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
+        .dl-modal-x:hover { color: #fff; }
+        .dl-modal-list { padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .dl-item { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-radius: 12px; background: rgb(255 255 255 / .04); border: 1px solid rgb(255 255 255 / .06); text-decoration: none; color: #e8e8f0; transition: background .15s ease, border-color .15s ease; }
+        .dl-item:hover { background: rgb(155 89 182 / .18); border-color: rgb(155 89 182 / .5); }
+        .dl-item-name { flex: 1; font-size: 14px; font-weight: 700; }
+        .dl-item-meta { display: flex; gap: 6px; }
+        .dl-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #c9a7e0; background: rgb(155 89 182 / .18); border-radius: 6px; padding: 3px 7px; }
+        .dl-item-dl { width: 18px; height: 18px; color: #9b59b6; flex-shrink: 0; }
+    </style>
+    <?php endif; ?>
+
     <?php if (!empty($episode['prev_episode_url']) || !empty($episode['next_episode_url'])): ?>
     <div class="ep-nav-flex">
         <?php if (!empty($episode['prev_episode_url'])): ?><a href="<?= View::hurl($episode['prev_episode_url']) ?>" class="nav-btn">← Previous</a><?php endif; ?><?php if (!empty($episode['next_episode_url'])): ?><a href="<?= View::hurl($episode['next_episode_url']) ?>" class="nav-btn" id="next-ep-btn">Next →</a><?php endif; ?>
