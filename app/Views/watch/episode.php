@@ -54,27 +54,18 @@ $recommendations = $episode['recommendations'] ?? [];
     // player URL would just 404 inside the frame, so show a retry notice
     // instead of a dead iframe.
     $showEmptyState = trim((string) $playerSrc) === '' || (empty($episodeServers) && $isWhPlayer);
-    // animedekho.tv gates playback behind a one-per-24h human "skip the ad"
-    // wall: the /epi/ page still gives us the title/poster, but the REST API
-    // returns no sources until the visitor clears the gate on the source site.
-    $isAdGated = empty($episodeServers) && Config::get('provider') === 'animedekho';
-    $gateUrl = '';
-    if ($isAdGated) {
-        $slug = (string) ($episode['hash'] ?? $episode['id'] ?? '');
-        $gateUrl = 'https://animedekho.tv/?dgt_gate=1&next=' . rawurlencode('https://animedekho.tv/epi/' . $slug . '/');
-    }
+    // animedekho.tv arms a one-per-24h "skip the ad" wall on its side. Its
+    // prompt must never reach our visitors: api_episode_data() serves the
+    // last payload that resolved during those windows, and when there is
+    // genuinely nothing to play we show the neutral retry state instead of
+    // sending anyone to a third-party verification page.
     ?>
     <?php if ($showEmptyState): ?>
     <div class="player-container" id="at-container-v2" style="background:#000 !important; display:block !important; visibility:visible !important; opacity:1 !important;">
         <div style="width:100%; height:100%; min-height:240px; display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:24px; box-sizing:border-box; text-align:center;">
-            <?php if ($isAdGated): ?>
-            <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Playback for this title is locked behind the source site's ad gate.</p>
-            <p style="margin:0; color:#9aa; font-size:13px;">Open it once (unlocks for ~24h) and come back to watch.</p>
-            <a href="<?= View::escape($gateUrl) ?>" target="_blank" rel="noopener noreferrer" style="border:0; border-radius:8px; padding:10px 26px; background:#9b59b6; color:#fff; font-size:14px; font-weight:700; text-decoration:none;">Unlock Playback</a>
-            <?php else: ?>
-            <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Sources failed to load. Please retry.</p>
+            <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Sources are refreshing right now.</p>
+            <p style="margin:0; color:#9aa; font-size:13px;">Give it a few seconds — no verification needed.</p>
             <button type="button" onclick="location.reload()" style="border:0; border-radius:8px; padding:9px 26px; background:#389ce9; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">Retry</button>
-            <?php endif; ?>
         </div>
     </div>
     <?php else: ?>

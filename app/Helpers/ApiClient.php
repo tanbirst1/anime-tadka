@@ -1716,10 +1716,57 @@ function api_anime_data(string $slug) {
 }
 
 /**
- * Episode watch page data mapped to the watch view contract.
+ * Episode payload for the watch/player pages.
+ *
+ * animedekho re-arms a per-IP "skip the ad" wall every 24h; while it is up
+ * its /watch REST answers with no sources at all. Keep the last payload that
+ * did resolve and serve it during those windows so the player keeps working
+ * (and visitors are never shown the upstream's 24h token/ad-gate prompt).
+ * A successful resolution refreshes the entry; entries expire after 48h so a
+ * dead source link cannot be served forever.
+ *
  * Returns null when the hash cannot be resolved.
  */
 function api_episode_data(string $hash) {
+    if (api_provider() !== 'animedekho') {
+        return api_episode_data_live($hash);
+    }
+
+    $adCacheKey = 'ep_ad_' . md5(preg_replace('/\?.*$/', '', $hash));
+    $adCached = api_cache_get($adCacheKey, 172800);
+
+    // Resolved moments ago: reuse it instead of hammering upstream.
+    if (is_array($adCached) && !empty($adCached['servers'])
+        && (time() - (int) ($adCached['_fetchedAt'] ?? 0)) < 600) {
+        unset($adCached['_fetchedAt']);
+        return $adCached;
+    }
+
+    $episode = api_episode_data_live($hash);
+
+    if (is_array($episode) && !empty($episode['servers'])) {
+        $episode['_fetchedAt'] = time();
+        api_cache_set($adCacheKey, $episode, 172800);
+        unset($episode['_fetchedAt']);
+        return $episode;
+    }
+
+    // No sources: the upstream gate window (or a transient failure). The
+    // episode page itself still rendered, so hand back the last known good
+    // payload rather than an empty player.
+    if (is_array($episode) && is_array($adCached) && !empty($adCached['servers'])) {
+        unset($adCached['_fetchedAt']);
+        return $adCached;
+    }
+    return $episode;
+}
+
+/**
+ * Provider fetch behind api_episode_data(): uncached upstream call.
+ * Episode watch page data mapped to the watch view contract.
+ * Returns null when the hash cannot be resolved.
+ */
+function api_episode_data_live(string $hash) {
     $provider = api_provider();
 
     // ── Anikoto ─────────────────────────────────────────────────────
@@ -2090,8 +2137,8 @@ function api_episode_data(string $hash) {
         }
         // No title at all means neither /epi/ nor /movie-hindi/ matched: 404.
         // A title with no servers is a gated episode — keep it so the page
-        // renders the title/poster/nav and the player shows the gate notice
-        // instead of a bare 404.
+        // renders the title/poster/nav and the player shows the neutral retry
+        // state (never the upstream's 24h token prompt) instead of a bare 404.
         if (!is_array($data) || empty($data['title'])) return null;
         # Series episodes must show OTHER EPISODES/SEASONS, not "Full Movie"
         $seriesUrl = $data['navigation']['seriesPage'] ?? '';
