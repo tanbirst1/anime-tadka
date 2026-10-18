@@ -105,23 +105,8 @@ $recommendations = $episode['recommendations'] ?? [];
     <script>
     (function () {
         var frame = document.getElementById('at-player-v2');
-        // Empty state renders no iframe: nothing to lock or switch.
+        // Empty state renders no iframe: nothing to switch.
         if (!frame) return;
-        // Block extra taps while a switch is already loading (rapid taps
-        // restart the load and nothing ever finishes).
-        var switching = false;
-        var switchTimer = null;
-        function unlock() {
-            switching = false;
-            if (switchTimer) { clearTimeout(switchTimer); switchTimer = null; }
-        }
-        // Safety valve: some frames never fire `load` (blocked/aborted), which
-        // would otherwise swallow every future switch.
-        function armTimeout() {
-            if (switchTimer) clearTimeout(switchTimer);
-            switchTimer = setTimeout(unlock, 10000);
-        }
-        frame.addEventListener('load', unlock);
         // Normalize hrefs so '/x?server=1' vs absolute/relative forms compare equal.
         function sameSrc(url) {
             if (!url) return false;
@@ -135,26 +120,17 @@ $recommendations = $episode['recommendations'] ?? [];
         }
         // Tabs render after this script: bind on DOM ready.
         document.addEventListener('DOMContentLoaded', function () {
-            Array.prototype.forEach.call(document.querySelectorAll('.srv-btn'), function (btn) {
-                btn.addEventListener('click', function (e) {
-                    // Re-clicking the tab that is already shown never fires
-                    // `load`, so don't take the switching lock for it.
-                    if (btn.classList.contains('active') || sameSrc(btn.getAttribute('data-url'))) {
-                        return;
-                    }
-                    if (switching) {
-                        e.stopImmediatePropagation();
-                        e.preventDefault();
-                        return;
-                    }
-                    switching = true;
-                    armTimeout();
-                });
-            });
             // Lazy resolution: only the active server's direct player URL is
             // scraped on page load. Any other tab is resolved on demand (first
-            // click), and a tab already shown by a restored preference is
-            // resolved immediately so the frame never loads a raw wrapper.
+            // click), then the click is replayed so the normal switch runs.
+            //
+            // There is deliberately NO switching lock. A player frame whose
+            // target never fires `load` (CSP frame-ancestors, ORB-blocked ad
+            // frames, cross-origin CDN players) would keep such a lock armed
+            // for its whole timeout and swallow every following tap, so the
+            // next server appeared not to load at all. A click now always
+            // switches immediately; sameSrc() alone stops a redundant reload
+            // of the tab that is already shown.
             Array.prototype.forEach.call(document.querySelectorAll('.srv-btn'), function (btn) {
                 if (btn.getAttribute('data-resolved') === '1') return;
                 function apply(src) {
@@ -172,12 +148,16 @@ $recommendations = $episode['recommendations'] ?? [];
                         .then(function (d) {
                             if (d && d.ok && d.src) apply(d.src);
                             btn.classList.remove('at-resolving');
+                            // Mark resolved before replaying: the replayed click
+                            // then takes the normal switch path instead of
+                            // looping back through this resolver.
                             btn.setAttribute('data-resolved', '1');
                             if (cb) cb();
                         });
                 }
-                // Tab already being shown (e.g. restored preference): resolve now.
-                if (btn.classList.contains('active') && frame) {
+                // Tab already being shown (e.g. restored preference): resolve now
+                // so the frame never loads a raw wrapper.
+                if (btn.classList.contains('active')) {
                     resolve(function () {
                         var u = btn.getAttribute('data-url');
                         if (u) frame.src = u;
