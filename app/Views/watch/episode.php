@@ -54,14 +54,49 @@ $recommendations = $episode['recommendations'] ?? [];
     // player URL would just 404 inside the frame, so show a retry notice
     // instead of a dead iframe.
     $showEmptyState = trim((string) $playerSrc) === '' || (empty($episodeServers) && $isWhPlayer);
+    // animedekho.tv arms a one-per-24h "skip the ad" wall on its side. Its
+    // prompt must never reach our visitors: api_episode_data() serves the
+    // last payload that resolved during those windows, and when there is
+    // genuinely nothing to play we show the neutral retry state instead of
+    // sending anyone to a third-party verification page.
     ?>
     <?php if ($showEmptyState): ?>
     <div class="player-container" id="at-container-v2" style="background:#000 !important; display:block !important; visibility:visible !important; opacity:1 !important;">
         <div style="width:100%; height:100%; min-height:240px; display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:24px; box-sizing:border-box; text-align:center;">
-            <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Sources failed to load. Please retry.</p>
-            <button type="button" onclick="location.reload()" style="border:0; border-radius:8px; padding:9px 26px; background:#389ce9; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">Retry</button>
+            <div aria-hidden="true" style="width:38px; height:38px; border:3px solid rgba(255,255,255,.18); border-top-color:#389ce9; border-radius:50%; animation:atSrcSpin .9s linear infinite;"></div>
+            <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Preparing your player…</p>
+            <p style="margin:0; color:#9aa; font-size:13px;">Fetching the original source. The player loads on its own — no verification needed.</p>
+            <p id="at-src-status" style="margin:0; color:#7ea; font-size:12px;"></p>
         </div>
     </div>
+    <style>@keyframes atSrcSpin{to{transform:rotate(360deg)}}</style>
+    <script>
+    // Eager source gate: the player is only loaded once the server has scraped
+    // the original watch source. Poll the readiness probe and reload into the
+    // real player as soon as it is ready (no manual Retry, no dead frame).
+    (function () {
+        var hash = <?= json_encode((string) ($episode['hash'] ?? '')) ?>;
+        if (!hash) return;
+        var tries = 0, MAX = 20, DELAY = 3000;
+        var status = document.getElementById('at-src-status');
+        function poll() {
+            tries++;
+            fetch('/player/ready?hash=' + encodeURIComponent(hash) + '&t=' + Date.now(), { cache: 'no-store' })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d && d.ready) { location.reload(); return; }
+                    if (status) status.textContent = 'Still working… attempt ' + tries;
+                    if (tries < MAX) { setTimeout(poll, DELAY); return; }
+                    if (status) status.innerHTML = 'Taking longer than usual. <a href="javascript:location.reload()" style="color:#389ce9;font-weight:700;">Tap to retry now</a>.';
+                })
+                .catch(function () {
+                    if (status) status.textContent = 'Still working… attempt ' + tries;
+                    if (tries < MAX) setTimeout(poll, DELAY);
+                });
+        }
+        setTimeout(poll, 1000);
+    })();
+    </script>
     <?php else: ?>
     <div class="player-container" id="at-container-v2" style="background:#000 !important; display:block !important; visibility:visible !important; opacity:1 !important;">
         <iframe id="at-player-v2" src="<?= $playerSrc ?>" frameborder="0" allowfullscreen="" style="width:100%; height:100%; display:block !important; visibility:visible !important; opacity:1 !important;"></iframe>
@@ -115,6 +150,47 @@ $recommendations = $episode['recommendations'] ?? [];
                     switching = true;
                     armTimeout();
                 });
+            });
+            // Lazy resolution: only the active server's direct player URL is
+            // scraped on page load. Any other tab is resolved on demand (first
+            // click), and a tab already shown by a restored preference is
+            // resolved immediately so the frame never loads a raw wrapper.
+            Array.prototype.forEach.call(document.querySelectorAll('.srv-btn'), function (btn) {
+                if (btn.getAttribute('data-resolved') === '1') return;
+                function apply(src) {
+                    btn.setAttribute('data-url', src);
+                    // jQuery caches data-* on first read; keep its copy in sync
+                    // so theme.js sets the frame to the resolved original src.
+                    if (window.jQuery) { try { window.jQuery(btn).data('url', src); } catch (err) {} }
+                }
+                function resolve(cb) {
+                    if (btn.classList.contains('at-resolving')) return;
+                    btn.classList.add('at-resolving');
+                    fetch('/player/server-src?url=' + encodeURIComponent(btn.getAttribute('data-url')) + '&t=' + Date.now(), { cache: 'no-store' })
+                        .then(function (r) { return r.json(); })
+                        .catch(function () { return null; })
+                        .then(function (d) {
+                            if (d && d.ok && d.src) apply(d.src);
+                            btn.classList.remove('at-resolving');
+                            btn.setAttribute('data-resolved', '1');
+                            if (cb) cb();
+                        });
+                }
+                // Tab already being shown (e.g. restored preference): resolve now.
+                if (btn.classList.contains('active') && frame) {
+                    resolve(function () {
+                        var u = btn.getAttribute('data-url');
+                        if (u) frame.src = u;
+                    });
+                    return;
+                }
+                btn.addEventListener('click', function (e) {
+                    if (btn.getAttribute('data-resolved') === '1') return;
+                    // Take over this click: resolve first, then replay it.
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    resolve(function () { btn.click(); });
+                }, true); // capture: runs before the switch handler
             });
         });
     })();
@@ -174,18 +250,182 @@ $recommendations = $episode['recommendations'] ?? [];
         <span style="color:#888; font-size:11px; font-weight:900; text-transform:uppercase;">If Current Server Not Working Switch To Another Server</span>
     </div>
 
+    <?php $lazyResolvable = (Config::get('provider') === 'animedekho') && !$isWhPlayer; ?>
     <div class="server-tabs">
         <?php foreach ($episodeServers as $i => $s): ?>
-            <?php $srvUrl = ($isWhPlayer && $whHash !== '') ? ('/player/watchhentai/' . rawurlencode($whHash) . '?server=' . (int) $i) : ($s['source'] ?: $s['url']); ?>
-            <button class="srv-btn<?= ($s['active'] ?? ($i === 0)) ? ' active' : '' ?>" data-url="<?= View::escape($srvUrl) ?>" data-auto="<?= !empty($s['auto']) ? 'true' : 'false' ?>" data-cdn21="<?= !empty($s['cdn21']) ? 'true' : 'false' ?>">
+            <?php
+            $srvUrl = ($isWhPlayer && $whHash !== '') ? ('/player/watchhentai/' . rawurlencode($whHash) . '?server=' . (int) $i) : ($s['source'] ?: $s['url']);
+            // Only animedekho wraps its player behind a wrapper that must be
+            // scraped; other providers already hand back the final URL.
+            $srvResolved = !$lazyResolvable || !empty($s['resolved']);
+            ?>
+            <button class="srv-btn<?= ($s['active'] ?? ($i === 0)) ? ' active' : '' ?>" data-url="<?= View::escape($srvUrl) ?>" data-resolved="<?= $srvResolved ? '1' : '0' ?>" data-auto="<?= !empty($s['auto']) ? 'true' : 'false' ?>" data-cdn21="<?= !empty($s['cdn21']) ? 'true' : 'false' ?>">
                 <?= View::escape($s['name']) ?>
             </button>
         <?php endforeach; ?>
     </div>
 
+    <?php
+    // Download servers are kept out of the streaming tabs and surfaced behind
+    // a single Download button that opens a modal listing every quality.
+    // animedekho only exposes the raw download.php endpoint up front (resolving
+    // it to the real file is the expensive part), so those rows are marked
+    // `lazy`: the modal shows a loading row per server and resolves them one by
+    // one via /ep/downloads only after the visitor opens it.
+    $downloadServers = $episode['download_servers'] ?? [];
+    if (empty($downloadServers)) {
+        foreach (($episode['download_links'] ?? []) as $dl) {
+            if (!is_array($dl) || empty($dl['url'])) continue;
+            $downloadServers[] = [
+                'name' => $dl['label'] ?? 'Download',
+                'url' => $dl['url'],
+                'raw' => '',
+                'lazy' => false,
+                'quality' => '',
+                'language' => '',
+            ];
+        }
+    }
+    // Only servers that actually carry a download endpoint get a row.
+    $downloadServers = array_values(array_filter($downloadServers, static function ($dl) {
+        return is_array($dl) && (!empty($dl['url']) || !empty($dl['raw']));
+    }));
+    $dlSlug = (string) ($episode['hash'] ?? '');
+    ?>
+    <?php if (!empty($downloadServers)): ?>
+    <div class="dl-actions">
+        <button type="button" class="dl-open-btn" id="dl-open-btn" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Download</span>
+            <span class="dl-open-count"><?= count($downloadServers) ?></span>
+        </button>
+    </div>
+    <div class="dl-modal" id="dl-modal" role="dialog" aria-modal="true" aria-label="Download servers" hidden>
+        <div class="dl-modal-backdrop" data-dl-close></div>
+        <div class="dl-modal-panel">
+            <div class="dl-modal-head">
+                <h3>Download Servers</h3>
+                <button type="button" class="dl-modal-x" data-dl-close aria-label="Close">&times;</button>
+            </div>
+            <div class="dl-modal-list" id="dl-modal-list">
+                <?php foreach ($downloadServers as $dl): ?>
+                <?php if (!empty($dl['lazy'])): ?>
+                <div class="dl-item dl-item--pending" data-dl-lazy>
+                    <span class="dl-item-name"><?= View::escape($dl['name'] ?: 'Download') ?></span>
+                    <span class="dl-item-meta">
+                        <?php if (!empty($dl['quality'])): ?><span class="dl-tag"><?= View::escape($dl['quality']) ?></span><?php endif; ?>
+                        <?php if (!empty($dl['language'])): ?><span class="dl-tag"><?= View::escape($dl['language']) ?></span><?php endif; ?>
+                    </span>
+                    <span class="dl-item-status"><span class="dl-spinner" aria-hidden="true"></span>Fetching link…</span>
+                </div>
+                <?php else: ?>
+                <a class="dl-item" href="<?= View::escape($dl['url']) ?>" target="_blank" rel="noopener noreferrer nofollow">
+                    <span class="dl-item-name"><?= View::escape($dl['name'] ?: 'Download') ?></span>
+                    <span class="dl-item-meta">
+                        <?php if (!empty($dl['quality'])): ?><span class="dl-tag"><?= View::escape($dl['quality']) ?></span><?php endif; ?>
+                        <?php if (!empty($dl['language'])): ?><span class="dl-tag"><?= View::escape($dl['language']) ?></span><?php endif; ?>
+                    </span>
+                    <svg class="dl-item-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </a>
+                <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var openBtn = document.getElementById('dl-open-btn');
+        var modal = document.getElementById('dl-modal');
+        if (!openBtn || !modal) return;
+        var list = document.getElementById('dl-modal-list');
+        var slug = <?= json_encode($dlSlug) ?>;
+        var lazyRows = list ? Array.prototype.slice.call(list.querySelectorAll('[data-dl-lazy]')) : [];
+        var loaded = false;
+        function open() { modal.hidden = false; document.body.style.overflow = 'hidden'; }
+        function close() { modal.hidden = true; document.body.style.overflow = ''; }
+        openBtn.addEventListener('click', function () { open(); loadDownloads(); });
+        modal.addEventListener('click', function (e) { if (e.target.hasAttribute('data-dl-close')) close(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+
+        var DL_ICON = '<svg class="dl-item-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
+
+        // Turn a pending row into a real link (or an "unavailable" notice).
+        function fillRow(row, dl) {
+            row.classList.remove('dl-item--pending');
+            var status = row.querySelector('.dl-item-status');
+            if (dl && dl.url) {
+                var a = document.createElement('a');
+                a.className = 'dl-item dl-item--reveal';
+                a.href = dl.url;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer nofollow';
+                a.innerHTML = row.innerHTML;
+                var st = a.querySelector('.dl-item-status');
+                if (st) st.remove();
+                a.insertAdjacentHTML('beforeend', DL_ICON);
+                row.replaceWith(a);
+            } else {
+                row.classList.add('dl-item--empty');
+                if (status) status.innerHTML = 'Link unavailable';
+            }
+        }
+
+        // Resolve the pending rows one at a time so the list fills in
+        // top-to-bottom with a short reveal between each.
+        function loadDownloads() {
+            if (loaded || !lazyRows.length || !slug) return;
+            loaded = true;
+            fetch('/ep/downloads?slug=' + encodeURIComponent(slug), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var downloads = (data && data.downloads) || [];
+                    lazyRows.forEach(function (row, i) {
+                        setTimeout(function () { fillRow(row, downloads[i]); }, i * 350);
+                    });
+                })
+                .catch(function () {
+                    lazyRows.forEach(function (row) { fillRow(row, null); });
+                });
+        }
+    })();
+    </script>
+    <?php endif; ?>
+
+    <?php if (!empty($downloadServers)): ?>
+    <style>
+        .dl-actions { display: flex; justify-content: center; margin: 4px 0 22px; }
+        .dl-open-btn { display: inline-flex; align-items: center; gap: 9px; background: linear-gradient(135deg, #9b59b6, #7d3c98); color: #fff; border: 0; border-radius: 14px; padding: 12px 26px; font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 5px 15px rgb(155 89 182 / .4); transition: transform .15s ease, box-shadow .15s ease; }
+        .dl-open-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgb(155 89 182 / .55); }
+        .dl-open-btn svg { width: 18px; height: 18px; }
+        .dl-open-count { background: rgb(0 0 0 / .3); border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 800; }
+        .dl-modal[hidden] { display: none; }
+        .dl-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .dl-modal-backdrop { position: absolute; inset: 0; background: rgb(0 0 0 / .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+        .dl-modal-panel { position: relative; width: 100%; max-width: 460px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; background: #14141c; border: 1px solid rgb(255 255 255 / .1); border-radius: 18px; box-shadow: 0 24px 70px rgb(0 0 0 / .55); }
+        .dl-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid rgb(255 255 255 / .08); }
+        .dl-modal-head h3 { margin: 0; font-size: 16px; font-weight: 800; color: #fff; }
+        .dl-modal-x { background: none; border: 0; color: #999; font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
+        .dl-modal-x:hover { color: #fff; }
+        .dl-modal-list { padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .dl-item { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-radius: 12px; background: rgb(255 255 255 / .04); border: 1px solid rgb(255 255 255 / .06); text-decoration: none; color: #e8e8f0; transition: background .15s ease, border-color .15s ease; }
+        .dl-item:hover { background: rgb(155 89 182 / .18); border-color: rgb(155 89 182 / .5); }
+        .dl-item-name { flex: 1; font-size: 14px; font-weight: 700; }
+        .dl-item-meta { display: flex; gap: 6px; }
+        .dl-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #c9a7e0; background: rgb(155 89 182 / .18); border-radius: 6px; padding: 3px 7px; }
+        .dl-item-dl { width: 18px; height: 18px; color: #9b59b6; flex-shrink: 0; }
+        .dl-item-status { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: #9a9ab0; }
+        .dl-item--pending { border-style: dashed; }
+        .dl-item--empty .dl-item-status { color: #d98; }
+        .dl-item--reveal { animation: dlReveal .28s ease; }
+        @keyframes dlReveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+        .dl-spinner { width: 14px; height: 14px; border: 2px solid rgb(255 255 255 / .2); border-top-color: #9b59b6; border-radius: 50%; animation: dlSpin .7s linear infinite; flex-shrink: 0; }
+        @keyframes dlSpin { to { transform: rotate(360deg); } }
+    </style>
+    <?php endif; ?>
+
     <?php if (!empty($episode['prev_episode_url']) || !empty($episode['next_episode_url'])): ?>
     <div class="ep-nav-flex">
-        <?php if (!empty($episode['prev_episode_url'])): ?><a href="<?= View::hurl($episode['prev_episode_url']) ?>" class="nav-btn">← Previous</a><?php endif; ?><?php if (!empty($episode['next_episode_url'])): ?><a href="<?= View::hurl($episode['next_episode_url']) ?>" class="nav-btn" id="next-ep-btn">Next →</a><?php endif; ?>
+        <?php if (!empty($episode['prev_episode_url'])): ?><a href="<?= View::escape(View::hurl($episode['prev_episode_url']) . '?type=episode') ?>" class="nav-btn">← Previous</a><?php endif; ?><?php if (!empty($episode['next_episode_url'])): ?><a href="<?= View::escape(View::hurl($episode['next_episode_url']) . '?type=episode') ?>" class="nav-btn" id="next-ep-btn">Next →</a><?php endif; ?>
     </div>
     <?php endif; ?>
 
@@ -253,7 +493,7 @@ $recommendations = $episode['recommendations'] ?? [];
 
             <div class="ep-list-drawer-cinematic" id="ep-list">
                 <?php foreach ($episodes as $ep): ?>
-                    <a href="<?= View::hurl('/ep/') ?><?= View::escape($ep['hash']) ?>/" id="<?= View::escape($ep['num']) ?>" class="ep-row-premium<?= !empty($ep['active']) ? ' is-playing' : '' ?>" data-hash="<?= View::escape($ep['hash']) ?>" data-ep-num="<?= View::escape($ep['num']) ?>" data-num="<?= View::escape($ep['num']) ?>" data-anime="<?= View::escape($episode['animeSlug'] ?? '') ?>">
+                    <a href="<?= View::escape(View::hurl('/ep/') . View::escape($ep['hash']) . '/?type=episode') ?>" id="<?= View::escape($ep['num']) ?>" class="ep-row-premium<?= !empty($ep['active']) ? ' is-playing' : '' ?>" data-hash="<?= View::escape($ep['hash']) ?>" data-ep-num="<?= View::escape($ep['num']) ?>" data-num="<?= View::escape($ep['num']) ?>" data-anime="<?= View::escape($episode['animeSlug'] ?? '') ?>">
                         <div class="thumb-wrap">
                             <img src="<?= View::escape($ep['thumb']) ?>" loading="lazy" alt="E<?= View::escape($ep['num']) ?>">
                             <div class="watched-ribbon" style="display:none"><span>WATCHED</span></div>
@@ -349,7 +589,7 @@ $recommendations = $episode['recommendations'] ?? [];
     <h4 style="margin-top:50px;">OTHER SEASONS</h4>
     <div class="season-grid-cinematic">
         <?php foreach ($seasons as $s): ?>
-            <a href="<?= View::hurl('/ep/') ?><?= View::escape($s['hash']) ?>/" class="season-card-rect">
+            <a href="<?= View::escape(View::hurl('/ep/') . View::escape($s['hash']) . '/?type=episode') ?>" class="season-card-rect">
                 <div class="s-bg-blur" style="background-image: url('<?= View::escape($s['poster']) ?>');"></div>
                 <span class="s-label"><?= View::escape($s['title']) ?></span>
             </a>
@@ -367,7 +607,7 @@ $recommendations = $episode['recommendations'] ?? [];
             <div class="reco-slider" id="recoSlider">
                 <?php foreach ($recommendations as $r): ?>
                     <div class="reco-item">
-                        <a href="<?= View::hurl('/') ?><?= View::escape($r['slug']) ?>/">
+                        <a href="<?= View::escape(View::typeHref('/', $r['type'] ?? 'series', $r['slug'])) ?>">
                             <div class="reco-poster">
                                 <img width="200" height="300" src="<?= View::escape($r['poster']) ?>" loading="lazy" class="attachment-medium size-medium wp-post-image" alt="">
                                 <div class="reco-overlay"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg></div>

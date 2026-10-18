@@ -38,9 +38,15 @@ return [
 
     // Ad Timer — set to minutes, 0 = disabled (no timer, no popup)
     'ad_timer'   => [
-        'enabled' => true,      // false = completely hide timer & popup
+        'enabled' => false,     // false = completely hide timer & popup
         'minutes' => 5,         // countdown duration in minutes (e.g. 5, 10, 15)
     ],
+
+    // Visitor-facing "Skip Ads" verification gate (header status widget +
+    // /skip-ads page). false = visitors are never asked to verify or given a
+    // token: the server resolves the upstream ad-gate token itself and serves
+    // the original sources directly. Set true to restore the old behaviour.
+    'skip_ads_gate' => false,
 
     // Social links (used by the share buttons on landing + anime pages)
     'socials'    => [

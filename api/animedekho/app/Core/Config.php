@@ -11,7 +11,7 @@ namespace AnimeDekhoApi\Core;
 final class Config
 {
     /** Base URL of the scraped site (override with ANIMEDEKHO_BASE_URL). */
-    public const BASE_URL = 'https://animedekho.app';
+    public const BASE_URL = 'https://animedekho.tv';
 
     public const PROVIDER = 'animedekho';
 
@@ -37,10 +37,18 @@ final class Config
 
     /**
      * Persistent cookie jar. animedekho's episode pages are gated behind an
-     * ad-skip wall whose verify URL sets a `toronites_server` cookie valid
-     * ~24h — the jar lets the client pass that gate transparently.
+     * ad-skip wall whose verify URL sets a `dgt_verified` cookie valid ~24h —
+     * the jar lets the client pass that gate transparently.
      */
     public const COOKIE_FILE = ANIMEDEKHO_ROOT . '/storage/cache/cookies.txt';
+
+    /**
+     * Seconds to dwell on the ad-gate page before hitting its verify token.
+     * The site's gate rejects a verify request that arrives too soon after the
+     * token was minted (the `i` query parameter), answering 403 "That was too
+     * fast" and issuing no unlock cookie. Override with ANIMEDEKHO_GATE_DWELL.
+     */
+    public const GATE_DWELL = 10;
 
     /** Per-content-type TTL in seconds (home/search 5m, series 30m, servers 1h, listings 10m). */
     public const CACHE_TTL = [
@@ -96,5 +104,28 @@ final class Config
     {
         $env = getenv('ANIMEDEKHO_BASE_URL');
         return $env !== false && $env !== '' ? rtrim($env, '/') : self::BASE_URL;
+    }
+
+    /**
+     * Cookie jar path. Overridable with ANIMEDEKHO_COOKIE_FILE so a test can
+     * point the client at a scratch jar instead of the shared one.
+     */
+    public static function cookieFile(): string
+    {
+        $env = getenv('ANIMEDEKHO_COOKIE_FILE');
+        return $env !== false && $env !== '' ? $env : self::COOKIE_FILE;
+    }
+
+    /**
+     * Dwell (seconds) to wait out before activating a gate verify token.
+     * Overridable with ANIMEDEKHO_GATE_DWELL.
+     */
+    public static function gateDwell(): int
+    {
+        $env = getenv('ANIMEDEKHO_GATE_DWELL');
+        if ($env !== false && $env !== '' && is_numeric($env)) {
+            return max(0, (int) $env);
+        }
+        return self::GATE_DWELL;
     }
 }

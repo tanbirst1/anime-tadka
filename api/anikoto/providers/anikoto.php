@@ -132,29 +132,62 @@ function anikotoParseHome($html) {
   $genres = domEach($doc, '#menu ul li ul.c4 li a', fn($el) => trim($el->attr('title') ?: $el->text() ?: ''));
   $genres = array_values(array_filter($genres));
 
-  $spotlight = domEach($doc, '#hotest .swiper-wrapper .swiper-slide.item', function ($el, $i) {
-    $playBtn = $el->find('a.btn.play');
+  // Spotlight slider. Newer Anikoto builds changed the hero markup: slides no
+  // longer carry the `.item` class and the title/poster/description/rating
+  // moved into `.ak-*` nodes. Try the current markup first, then fall back to
+  // the legacy one so the slider never renders blank after a site redesign.
+  $spotlight = domEach($doc, '#hotest .swiper-wrapper .swiper-slide.item, #hotest .swiper-wrapper .swiper-slide, #hotest .swiper-slide', function ($el, $i) {
+    $playBtn = $el->find('a.btn.btn-primary, a.btn.play, a.btn');
+    if (count($playBtn) === 0) $playBtn = $el->find('a[href*="/watch/"]');
     $href = count($playBtn) > 0 ? $playBtn[0]->attr('href') : null;
     $id = anikotoExtractId($href);
-    $title = $el->find('.title.d-title');
+
+    $title = $el->find('h2.ak-title.d-title, h2.ak-title, .title.d-title');
     $name = count($title) > 0 ? $title[0]->text() : null;
     $jname = count($title) > 0 ? $title[0]->attr('data-jp') : null;
-    $image = $el->find('.image div');
+
+    // New: <div class="cover"><img src="...">  Old: .image div[style="background-image:url(...)"]
     $poster = null;
-    if (count($image) > 0) {
-      $style = $image[0]->attr('style');
-      if ($style && preg_match("/url\(['\"]?([^)'\"]+)['\"]?\)/", $style, $m)) $poster = $m[1];
+    $coverImg = $el->find('.cover img');
+    if (count($coverImg) > 0) $poster = $coverImg[0]->attr('src') ?: $coverImg[0]->attr('data-src');
+    if (!$poster) {
+      $image = $el->find('.image div, .image');
+      if (count($image) > 0) {
+        $style = $image[0]->attr('style');
+        if ($style && preg_match("/url\(['\"]?([^)'\"]+)['\"]?\)/", $style, $m)) $poster = $m[1];
+      }
     }
-    $synopsis = $el->find('.synopsis');
+    if (!$poster) {
+      $anyImg = $el->find('img');
+      if (count($anyImg) > 0) $poster = $anyImg[0]->attr('src');
+    }
+
+    // New: .ak-desc  Old: .synopsis
+    $synopsis = $el->find('.ak-desc, .synopsis');
     $description = count($synopsis) > 0 ? $synopsis[0]->text() : null;
+
+    $ratingText = null;
+    $qualityText = null;
+    $dateText = null;
     $rating = $el->find('i.rating');
-    $ratingText = count($rating) > 0 ? $rating[0]->text() : null;
+    if (count($rating) > 0) $ratingText = trim($rating[0]->text());
     $quality = $el->find('i.quality');
+    if (count($quality) > 0) $qualityText = trim($quality[0]->text());
     $date = $el->find('i.date');
-    $otherInfo = array_values(array_filter([
-      count($quality) > 0 ? $quality[0]->text() : null,
-      count($date) > 0 ? $date[0]->text() : null,
-    ]));
+    if (count($date) > 0) $dateText = trim($date[0]->text());
+
+    // New markup packs type/date/rating into <span class="it"><i class="fa-star"></i>7.49</span>.
+    foreach ($el->find('.ak-detail .it, .ak-detail > span') as $it) {
+      $txt = trim($it->text());
+      if ($txt === '') continue;
+      $icon = $it->find('i');
+      $iconClass = count($icon) > 0 ? (string) $icon[0]->attr('class') : '';
+      if ($ratingText === null && strpos($iconClass, 'star') !== false) $ratingText = $txt;
+      elseif ($dateText === null && strpos($iconClass, 'calendar') !== false) $dateText = $txt;
+      elseif ($qualityText === null && strpos($iconClass, 'play') !== false) $qualityText = $txt;
+    }
+
+    $otherInfo = array_values(array_filter([$qualityText, $dateText]));
     return [
       'id' => $id, 'name' => $name, 'jname' => $jname ?: null,
       'poster' => $poster, 'description' => $description,

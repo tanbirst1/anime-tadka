@@ -49,3 +49,6 @@ api/graphify-out/
 
 # Test screenshots
 test/screenshots/
+
+# Agent memory
+.openhands/

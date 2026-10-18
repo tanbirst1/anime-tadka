@@ -46,7 +46,7 @@
                     </svg>
                 </div>
                 <div class="site-logo">
-                    <a href="/home">
+                    <a href="<?= View::hurl('/home') ?>">
 <img src="<?= View::escape(Config::get('logo')) ?>" alt="<?= View::escape(Config::get('site_name')) ?>">
                     </a>
                 </div>
@@ -61,6 +61,7 @@
                         <path d="m18 14 4 4-4 4"></path>
                     </svg>
                 </button>
+                <?php if (Config::get('skip_ads_gate', false)): ?>
                 <div id="sa-status-container" class="sa-status-box unverified-active" data-hours="24" data-home="/skip-ads">
                     <div id="sa-status-trigger" class="sa-fixed-icon is-warning" data-last="0">
                         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="sa-status-svg">
@@ -81,6 +82,7 @@
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
                 <div class="search-btn" id="toggle-search-overlay">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
                         <circle cx="11" cy="11" r="8"></circle>
@@ -122,7 +124,7 @@
     <div id="at-mobile-sidebar" class="ak-sidebar-wrapper">
         <div class="ak-sidebar-header">
             <div class="ak-sidebar-logo">
-                <a href="/home" style="display: flex; align-items: center; text-decoration: none;">
+                <a href="<?= View::hurl('/home') ?>" style="display: flex; align-items: center; text-decoration: none;">
                     <img src="<?= View::escape(Config::get('logo')) ?>" alt="<?= View::escape(Config::get('site_name')) ?>" style="max-width: 180px; max-height: 45px; width: auto; height: auto; object-fit: contain;">
                 </a>
             </div>

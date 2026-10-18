@@ -25,7 +25,7 @@
                     <span class="check-mark-styled"></span>
                 </div>
             </div>
-            <a href="/naruto-shippuden-hindi-dubbed-multi-audio-bluray-episodes-watch-online-download/" class="history-link">
+            <a href="/naruto-shippuden-hindi-dubbed-multi-audio-bluray-episodes-watch-online-download/?type=series" class="history-link">
                 <div class="poster-box">
                     <span class="badge se-badge">S17-E368</span>
                     <div class="play-hover">

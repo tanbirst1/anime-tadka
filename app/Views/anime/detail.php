@@ -280,7 +280,7 @@
         <div class="reco-slider" id="recoSlider">
             <?php foreach ($related as $rel): ?>
             <div class="reco-item">
-                <a href="<?= View::hurl('/') ?><?= View::escape($rel['slug']) ?>">
+                <a href="<?= View::escape(View::typeHref('/', $rel['type'] ?? 'series', $rel['slug'])) ?>">
                     <div class="reco-poster">
                         <img src="<?= $rel['image'] ?>" loading="lazy" alt="<?= View::escape($rel['title']) ?>">
                         <div class="reco-overlay">

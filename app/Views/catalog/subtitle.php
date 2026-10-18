@@ -19,7 +19,7 @@
 <div class="home-grid">
     <?php foreach ($anime as $item): ?>
     <div class="anime-card">
-        <a href="/<?= View::escape($item['slug'] ?? '') ?>">
+        <a href="<?= View::escape(View::typeHref('/', $item['type'] ?? '', $item['slug'] ?? '')) ?>">
             <div class="poster-box">
                 <span class="badge se-badge"><?= View::escape($item['episode'] ?? '') ?></span>
                 <span class="badge meta-badge"><?= View::escape($item['audio'] ?? '') ?></span>

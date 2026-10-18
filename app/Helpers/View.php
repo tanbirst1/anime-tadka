@@ -94,4 +94,35 @@ class View {
         }
         return $base . $path;
     }
+
+    /**
+     * Content link carrying an explicit type definer. Every card/anchor that
+     * points at a title says what it opens via a `?type=` query string
+     * (episode|series|movie) so the controllers never have to guess.
+     *
+     * Card slugs are provider-specific: some are bare ("jojos-1x2"), others
+     * already encode a route prefix and type ("ep/jojos?type=episode"). This
+     * normalizes both shapes before rebuilding the URL.
+     *
+     * @param string $base  section-relative prefix, e.g. '/ep/' or '/'
+     * @param string $type  raw content type ('episode', 'movies', 'series', …)
+     * @param string $slug  title slug (possibly pre-decorated)
+     */
+    public static function typeHref($base, $type, $slug) {
+        $slug = preg_replace('/\?.*$/', '', (string) $slug);
+        $slug = preg_replace('#^ep/#', '', $slug);
+        $path = self::hurl(rtrim((string) $base, '/') . '/' . ltrim($slug, '/'));
+        $t = self::normalizeType($type);
+        return $t === '' ? $path : $path . '?type=' . $t;
+    }
+
+    /** Collapse a raw content type to one of episode|series|movie ('' if unknown). */
+    public static function normalizeType($type) {
+        $t = strtolower(trim((string) $type));
+        if ($t === '') return '';
+        if (str_starts_with($t, 'movie')) return 'movie';
+        if ($t === 'episode' || $t === 'ep' || $t === 'epi') return 'episode';
+        if ($t === 'series' || $t === 'serie' || $t === 'tv') return 'series';
+        return '';
+    }
 }

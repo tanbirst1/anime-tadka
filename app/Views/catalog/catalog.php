@@ -27,7 +27,7 @@ $showToggle = $showToggle ?? true;
 <div class="home-grid">
     <?php foreach ($anime as $item): ?>
     <div class="anime-card">
-        <a href="<?= View::hurl('/') ?><?= View::escape($item['slug'] ?? '') ?>">
+        <a href="<?= View::escape(View::typeHref('/', $item['type'] ?? '', $item['slug'] ?? '')) ?>">
             <div class="poster-box">
                 <?php if (!empty($item['episode'] ?? '')): ?><span class="badge se-badge"><?= View::escape($item['episode']) ?></span><?php endif; ?>
                 <?php if (!empty($item['audio'] ?? '')): ?><span class="badge meta-badge"><?= View::escape($item['audio']) ?></span><?php endif; ?><?php if (!empty($item['year'] ?? '')): ?><?php if (!empty($item['year'] ?? '')): ?><?php endif; ?><?php endif; ?>
