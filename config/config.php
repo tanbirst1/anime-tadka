@@ -27,7 +27,7 @@ return [
     'base_url'   => $baseUrl,
     'api_url'    => $baseUrl . '/api',
 
-    // Content provider: 'animetadka' (default) | 'anikoto' | 'toonstream' | 'animedekho' | 'watchhentai'
+    // Content provider: 'anikoto' (default) | 'animetadka' | 'toonstream' | 'animedekho' | 'watchhentai'
     // Change this to switch the data source for all pages.
     'provider' => 'animedekho',
 

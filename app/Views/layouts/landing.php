@@ -21,9 +21,10 @@
     <link rel="icon" href="<?= View::escape(Config::get('icon')) ?>" type="image/png">
 
     <link rel="stylesheet" href="/assets/css/landing-bundle.css">
+    <link rel="stylesheet" href="/assets/css/components/bottom-nav.css">
     <script>window.__AT_PROVIDER__="<?= strtolower(api_provider()) ?>"; window.__AT_PROVIDER_LIST__=["animetadka","anikoto","toonstream","animedekho"];</script>
 </head>
-<body class="landing-body">
+<body class="landing-body at-has-bnav">
     <div class="glass-bg-wrapper">
         <div class="blob-1"></div>
         <div class="blob-2"></div>
@@ -64,5 +65,6 @@
 
     <script src="/assets/js/pages/fpage.js?v=2" defer></script>
     <script src="/assets/js/pages/landing.js?v=2" defer></script>
+    <?php require ROOT_PATH . '/app/Views/partials/bottom-nav.php'; ?>
 </body>
 </html>
