@@ -60,6 +60,10 @@ final class Config
         'category' => 600,
         'cast' => 600,
         'letter' => 600,
+        // Resolved wrapper → direct player URL. Player embeds are stable for
+        // hours, so a 15-minute window keeps tab switching instant while still
+        // picking up a rotated URL well within the episode cache's lifetime.
+        'wrapper_src' => 900,
     ];
 
     /** Project-root config.json, loaded once. */

@@ -100,7 +100,10 @@ if ($path === '/wp-json/dgt/v1/watch') {
 }
 
 if ($path === '/player.php') {
-    // Same-site wrapper exposing the external player in an iframe.
+    // Same-site wrapper exposing the external player in an iframe. Count hits
+    // so tests can prove the src cache avoids repeated wrapper fetches.
+    $counterFile = __DIR__ . '/stub-wrapper-counter.txt';
+    @file_put_contents($counterFile, (string) ((int) @file_get_contents($counterFile) + 1));
     header('Content-Type: text/html; charset=utf-8');
     echo '<html><body><iframe src="https://abyssplayer.com/m5bXILRqW" allowfullscreen></iframe></body></html>';
     exit;

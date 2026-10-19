@@ -8,6 +8,7 @@ use DOMXPath;
 use AnimeDekhoApi\Core\Config;
 use AnimeDekhoApi\Core\ScrapeException;
 use AnimeDekhoApi\Utils\Arr;
+use AnimeDekhoApi\Utils\Cache;
 use AnimeDekhoApi\Utils\Dom;
 use AnimeDekhoApi\Utils\HttpClient;
 use AnimeDekhoApi\Utils\Url;
@@ -1036,16 +1037,39 @@ final class AnimeDekho
         if ($src === '' || !$this->isWrapperSrc($src)) {
             return null;
         }
+        // Persistent cache: a wrapper maps to the same player URL for hours,
+        // so a tab-switch probe should not re-walk the chain every time. Only
+        // successful resolutions are stored (a null result may be transient).
+        $cache = null;
+        if (Config::cacheEnabled()) {
+            try {
+                $cache = new Cache(Config::CACHE_DIR);
+                $hit = $cache->get('wrapper_src', $src);
+                if (is_array($hit) && isset($hit['src']) && is_string($hit['src']) && $hit['src'] !== '') {
+                    return $hit['src'];
+                }
+            } catch (\Throwable $e) {
+                $cache = null;
+            }
+        }
         try {
             $jsonCache = [];
             $bodies = $this->fetchWrappers([$src], 2, $jsonCache);
             if (!isset($bodies[$src]) || $bodies[$src] === null) {
                 return null;
             }
-            return $this->resolveSrc($src, $bodies, $jsonCache, 4);
+            $resolved = $this->resolveSrc($src, $bodies, $jsonCache, 4);
         } catch (ScrapeException $e) {
             return null;
         }
+        if ($resolved !== null && $resolved !== '' && $cache !== null) {
+            try {
+                $cache->set('wrapper_src', $src, ['src' => $resolved]);
+            } catch (\Throwable $e) {
+                // Cache write is best-effort; never fail the resolve.
+            }
+        }
+        return $resolved;
     }
 
     /**

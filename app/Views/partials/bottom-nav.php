@@ -15,7 +15,9 @@ $navIsMovies = !$navInHentai && (bool) preg_match('#^/(type|catalog|genre)/(movi
 $navIsSeries = !$navInHentai && (bool) preg_match('#^/(type|catalog|genre)/(tv|series|tv-series)#', $navPath);
 $navIsHome = !$navInHentai && !$navIsMovies && !$navIsSeries;
 
-$navHomeHref = $navInHentai ? '/hentai/home' : '/home';
+$navHomeHref = $navInHentai
+    ? '/hentai/home'
+    : rtrim((string) Config::get('base_url'), '/') . '/home';
 ?>
 <nav class="at-bnav" aria-label="Primary">
     <a href="/catalog/movie" class="at-bnav-item<?= $navIsMovies ? ' is-active' : '' ?>">
