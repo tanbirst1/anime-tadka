@@ -5,6 +5,9 @@ define('CACHE_DIR', __DIR__ . '/cache');
 define('BASE_URLS', json_encode([
   'anikai' => 'https://anikai.to',
   'anikoto' => 'https://anikototv.to',
+  // Backup mirror, used automatically when the primary host fails. Upstream's
+  // own API advertises this pair as the anikoto domains.
+  'anikotoBackup' => 'https://anikoto.cz',
   'anikotoApi' => 'https://anikotoapi.site',
   'hianime' => 'https://hianime.to',
 ]));
@@ -24,6 +27,7 @@ define('API_HEADERS', json_encode([
 ]));
 
 function baseUrl($key) {
-  $urls = json_decode(BASE_URLS, true);
+  static $urls = null;
+  if ($urls === null) $urls = json_decode(BASE_URLS, true) ?: [];
   return $urls[$key] ?? null;
 }

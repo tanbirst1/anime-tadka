@@ -20,6 +20,8 @@ return [
 
     // ── Anikoto ─────────────────────────────────────────────────────
     'anikoto'        => 'https://anikototv.to',
+    // Backup mirror, used automatically when the primary host fails.
+    'anikotoBackup'  => 'https://anikoto.cz',
     'anikotoApi'     => 'https://anikotoapi.site',
     'anikai'         => 'https://anikai.to',
     'hianime'        => 'https://hianime.to',

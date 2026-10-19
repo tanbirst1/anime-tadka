@@ -81,6 +81,8 @@ return [
 
         'anikoto' => [
             'base_url' => 'https://anikototv.to',
+            // Backup mirror, tried automatically when base_url fails.
+            'base_url_backup' => 'https://anikoto.cz',
             'api_url'  => 'https://anikotoapi.site',
             'timeout'  => 15,
             'cache'    => [

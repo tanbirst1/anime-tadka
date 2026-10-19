@@ -34,6 +34,9 @@ return [
     // Assets (relative to /public)
     'icon'       => '/assets/static/icon.png',
     'logo'       => '/assets/static/logo.webp',
+    // Logo used in the fixed bottom nav's Home tab. Set to '' to fall back to
+    // the header 'logo' above. Change this to give the bottom bar its own mark.
+    'down_logo'  => '/assets/static/logo.webp',
     'main_image' => '/assets/static/main_img.png',
 
     // Ad Timer — set to minutes, 0 = disabled (no timer, no popup)

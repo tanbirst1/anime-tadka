@@ -18,6 +18,13 @@ $navIsHome = !$navInHentai && !$navIsMovies && !$navIsSeries;
 $navHomeHref = $navInHentai
     ? '/hentai/home'
     : rtrim((string) Config::get('base_url'), '/') . '/home';
+
+// Bottom-bar mark: its own `down_logo`, falling back to the header `logo`
+// when unset so existing deployments keep rendering without a config change.
+$navLogo = (string) Config::get('down_logo', '');
+if ($navLogo === '') {
+    $navLogo = (string) Config::get('logo');
+}
 ?>
 <nav class="at-bnav" aria-label="Primary">
     <a href="/catalog/movie" class="at-bnav-item<?= $navIsMovies ? ' is-active' : '' ?>">
@@ -30,7 +37,7 @@ $navHomeHref = $navInHentai
     </a>
     <a href="<?= View::escape($navHomeHref) ?>" class="at-bnav-item at-bnav-home<?= $navIsHome ? ' is-active' : '' ?>">
         <span class="at-bnav-logo">
-            <img src="<?= View::escape(Config::get('logo')) ?>" alt="<?= View::escape(Config::get('site_name')) ?>">
+            <img src="<?= View::escape($navLogo) ?>" alt="<?= View::escape(Config::get('site_name')) ?>">
         </span>
         <span>Home</span>
     </a>

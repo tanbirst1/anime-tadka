@@ -708,12 +708,119 @@ function anikotoMergeAnimeData($jsonResult, $htmlResult) {
 
 // ─── Public API ────────────────────────────────────────────────────
 
+/**
+ * GET a path from the anikoto primary host, transparently falling back to the
+ * backup mirror (https://anikoto.cz) when the primary fails — DNS, connection,
+ * timeout, or a 4xx/5xx response.
+ *
+ * Within one request the host that last succeeded is remembered, so a page that
+ * resolves several resources does not re-pay the primary timeout each time.
+ * Across requests a short-lived sticky flag keeps traffic on the mirror while
+ * the primary is down, then lets it drift back once the primary recovers.
+ *
+ * @param string $path   Path beginning with '/', e.g. '/home'.
+ * @param array  $params Optional query parameters.
+ * @return string Response body.
+ */
+function anikotoGet($path, $params = []) {
+  static $preferred = null;
+
+  $primary = baseUrl('anikoto');
+  $backup  = baseUrl('anikotoBackup');
+
+  // Ordered, de-duplicated candidate hosts. The remembered winner (if any) is
+  // tried first; the rest follow as fallbacks.
+  $hosts = [];
+  foreach ([$preferred, $primary, $backup] as $h) {
+    if (is_string($h) && $h !== '' && !in_array($h, $hosts, true)) $hosts[] = $h;
+  }
+
+  // Cross-request hint: when the primary was seen failing recently, start with
+  // the backup instead of waiting on the primary timeout again.
+  if ($preferred === null && $primary !== null && $backup !== null) {
+    $sticky = anikotoStickyHost($primary, $backup);
+    if ($sticky !== null) $hosts = anikotoReorderHosts($hosts, $sticky);
+  }
+
+  $lastError = null;
+  $count = count($hosts);
+  foreach ($hosts as $i => $host) {
+    try {
+      $body = httpGet($host . $path, $params);
+      $preferred = $host;
+      if ($host === $backup && $primary !== null) {
+        anikotoMarkPrimaryDown($primary, $backup);
+      } elseif ($host === $primary) {
+        anikotoMarkPrimaryUp($primary);
+      }
+      return $body;
+    } catch (Exception $e) {
+      $lastError = $e;
+      if ($i < $count - 1) {
+        error_log('anikoto: ' . $host . $path . ' failed (' . $e->getMessage() . '), trying next mirror');
+      }
+    }
+  }
+
+  throw $lastError ?: new Exception("anikoto request failed: $path");
+}
+
+/** Move $host to the front of $hosts (no-op when absent). */
+function anikotoReorderHosts(array $hosts, $host) {
+  $idx = array_search($host, $hosts, true);
+  if ($idx === false || $idx === 0) return $hosts;
+  unset($hosts[$idx]);
+  return array_values(array_merge([$host], $hosts));
+}
+
+/** Path of the sticky-failure flag file (best effort; '' when unavailable). */
+function anikotoStickyFile() {
+  if (!defined('CACHE_DIR')) return '';
+  $dir = CACHE_DIR;
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) return '';
+  return $dir . '/anikoto_host.sticky';
+}
+
+/**
+ * The backup host when the primary failed within the last 10 minutes, else null.
+ * Best effort: any read problem simply returns null (try primary first).
+ */
+function anikotoStickyHost($primary, $backup) {
+  $file = anikotoStickyFile();
+  if ($file === '' || !is_file($file)) return null;
+  $raw = @file_get_contents($file);
+  if ($raw === false) return null;
+  $parts = explode('|', $raw);
+  if (count($parts) !== 3) return null;
+  [$downHost, $stickyBackup, $ts] = $parts;
+  if ($downHost !== $primary || $stickyBackup !== $backup) return null;
+  if (time() - (int) $ts > 600) return null; // stale: retry the primary
+  return $backup;
+}
+
+/** Remember that the primary is down so the next request starts on the backup. */
+function anikotoMarkPrimaryDown($primary, $backup) {
+  $file = anikotoStickyFile();
+  if ($file === '') return;
+  @file_put_contents($file, $primary . '|' . $backup . '|' . time(), LOCK_EX);
+}
+
+/** Clear the sticky flag once the primary answers again. */
+function anikotoMarkPrimaryUp($primary) {
+  $file = anikotoStickyFile();
+  if ($file === '' || !is_file($file)) return;
+  $raw = @file_get_contents($file);
+  if ($raw !== false && str_starts_with($raw, $primary . '|')) {
+    @unlink($file);
+  }
+}
+
 function anikotoGetHome() {
-  return anikotoParseHome(httpGet(baseUrl('anikoto') . '/home'));
+  return anikotoParseHome(anikotoGet('/home'));
 }
 
 function anikotoGetIndex() {
-  return anikotoParseIndex(httpGet(baseUrl('anikoto') . '/'));
+  return anikotoParseIndex(anikotoGet('/'));
 }
 
 function anikotoGetById($id) {
@@ -727,7 +834,7 @@ function anikotoGetById($id) {
   }
 
   try {
-    $htmlData = anikotoParseAnime(httpGet(baseUrl('anikoto') . "/watch/" . ($numericId ?: $id)));
+    $htmlData = anikotoParseAnime(anikotoGet("/watch/" . ($numericId ?: $id)));
     if (!$numericId && ($htmlData['anime']['animeId'] ?? null)) $numericId = $htmlData['anime']['animeId'];
   } catch (Exception $e) {}
 
@@ -742,36 +849,36 @@ function anikotoGetById($id) {
 function anikotoGetAzList($sort = 'all', $page = 1) {
   $path = $sort === 'all' ? '/az-list' : "/az-list/$sort";
   $params = $page > 1 ? ['page' => $page] : [];
-  return anikotoParseSearchFromHtml(httpGet(baseUrl('anikoto') . $path, $params));
+  return anikotoParseSearchFromHtml(anikotoGet($path, $params));
 }
 
 function anikotoGetGenre($name, $page = 1, $sort = null) {
   $params = ['page' => $page];
   if ($sort) $params['sort'] = $sort;
-  return anikotoParseListPage(httpGet(baseUrl('anikoto') . "/genre/$name", $params));
+  return anikotoParseListPage(anikotoGet("/genre/$name", $params));
 }
 
 function anikotoGetCategory($name, $page = 1, $sort = null) {
   $params = ['page' => $page];
   if ($sort) $params['sort'] = $sort;
-  return anikotoParseListPage(httpGet(baseUrl('anikoto') . "/$name", $params));
+  return anikotoParseListPage(anikotoGet("/$name", $params));
 }
 
 function anikotoGetType($name, $page = 1, $sort = null) {
   $params = ['page' => $page];
   if ($sort) $params['sort'] = $sort;
-  return anikotoParseListPage(httpGet(baseUrl('anikoto') . "/type/" . strtolower($name), $params));
+  return anikotoParseListPage(anikotoGet("/type/" . strtolower($name), $params));
 }
 
 function anikotoGetNavMenu($providerName = 'anikoto') {
-  return anikotoParseNavMenu(httpGet(baseUrl('anikoto') . '/home'), $providerName);
+  return anikotoParseNavMenu(anikotoGet('/home'), $providerName);
 }
 
 function anikotoGetEpisodes($id) {
   $numericId = preg_match('/^\d+$/', $id) ? $id : null;
   if (!$numericId) {
     try {
-      $parsed = anikotoParseAnime(httpGet(baseUrl('anikoto') . "/watch/$id"));
+      $parsed = anikotoParseAnime(anikotoGet("/watch/$id"));
       $numericId = $parsed['anime']['animeId'] ?? null;
     } catch (Exception $e) {}
   }
@@ -795,7 +902,7 @@ function anikotoGetEpisode($id, $epNum) {
 function anikotoSearch($q, $page = 1, $filters = []) {
   $params = array_merge(['keyword' => $q, 'page' => $page], $filters);
   anikotoResolveGenres($params);
-  $html = httpGet(baseUrl('anikoto') . '/filter', $params);
+  $html = anikotoGet('/filter', $params);
   $result = anikotoParseSearchFromHtml($html);
   $result['searchQuery'] = $q;
   $result['searchFilters'] = $filters;
@@ -807,7 +914,7 @@ function anikotoBrowse($filters = [], $page = 1) {
   unset($filters['keyword']);
   $params = array_merge(['keyword' => $keyword, 'page' => $page], $filters);
   anikotoResolveGenres($params);
-  $html = httpGet(baseUrl('anikoto') . '/filter', $params);
+  $html = anikotoGet('/filter', $params);
   $result = anikotoParseSearchFromHtml($html);
   $result['filters'] = array_merge(['keyword' => $keyword ?: null], $filters);
   return $result;
