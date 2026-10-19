@@ -21,10 +21,11 @@
     <link rel="icon" href="<?= View::escape(Config::get('icon')) ?>" type="image/png">
 
     <link rel="stylesheet" href="/assets/css/main-bundle.css">
+    <link rel="stylesheet" href="/assets/css/components/bottom-nav.css">
     <?php if (str_contains((string)($bodyClass ?? ''), 'single-ep')): ?><link rel="stylesheet" href="/assets/css/pages/episode.css"><?php endif; ?>
     <script>window.__AT_PROVIDER__="<?= strtolower(api_provider()) ?>"; window.__AT_PROVIDER_LIST__=["animetadka","anikoto","toonstream","animedekho"];</script>
 </head>
-<body class="<?= View::escape($bodyClass ?? '') ?>" data-ad-timer-enabled="<?= !empty($adTimer['enabled']) ? '1' : '0' ?>" data-ad-timer-minutes="<?= (int)($adTimer['minutes'] ?? 0) ?>">
+<body class="<?= View::escape(trim(($bodyClass ?? '') . ' at-has-bnav')) ?>" data-ad-timer-enabled="<?= !empty($adTimer['enabled']) ? '1' : '0' ?>" data-ad-timer-minutes="<?= (int)($adTimer['minutes'] ?? 0) ?>">
     <!-- SVG Sprite (hidden) -->
     <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
         <symbol id="icon-view-all" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -61,6 +62,7 @@
                         <path d="m18 14 4 4-4 4"></path>
                     </svg>
                 </button>
+                <?php if (Config::get('skip_ads_gate', false)): ?>
                 <div id="sa-status-container" class="sa-status-box unverified-active" data-hours="24" data-home="/skip-ads">
                     <div id="sa-status-trigger" class="sa-fixed-icon is-warning" data-last="0">
                         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="sa-status-svg">
@@ -81,6 +83,7 @@
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
                 <div class="search-btn" id="toggle-search-overlay">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
                         <circle cx="11" cy="11" r="8"></circle>
@@ -408,6 +411,9 @@
             </div>
         </div>
     </div>
+
+    <?php require ROOT_PATH . '/app/Views/partials/bottom-nav.php'; ?>
+
     <script src="/assets/js/vendor/jquery.min.js" defer></script>
     <script src="/assets/js/vendor/swiper-bundle.min.js" defer></script>
     <script id="anime-master-js-js-extra">

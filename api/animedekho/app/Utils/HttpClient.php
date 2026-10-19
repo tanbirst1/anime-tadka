@@ -199,7 +199,7 @@ final class HttpClient
      */
     public function clearCookieJar(): void
     {
-        $jar = Config::COOKIE_FILE;
+        $jar = Config::cookieFile();
         if (is_file($jar)) {
             @unlink($jar);
         }
@@ -271,7 +271,7 @@ final class HttpClient
     /** @return \CurlHandle */
     private function handle(string $url)
     {
-        $jar = Config::COOKIE_FILE;
+        $jar = Config::cookieFile();
         $dir = dirname($jar);
         if (!is_dir($dir)) {
             @mkdir($dir, 0775, true);

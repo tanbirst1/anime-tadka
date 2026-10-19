@@ -63,11 +63,40 @@ $recommendations = $episode['recommendations'] ?? [];
     <?php if ($showEmptyState): ?>
     <div class="player-container" id="at-container-v2" style="background:#000 !important; display:block !important; visibility:visible !important; opacity:1 !important;">
         <div style="width:100%; height:100%; min-height:240px; display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:24px; box-sizing:border-box; text-align:center;">
-            <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Sources are refreshing right now.</p>
-            <p style="margin:0; color:#9aa; font-size:13px;">Give it a few seconds — no verification needed.</p>
-            <button type="button" onclick="location.reload()" style="border:0; border-radius:8px; padding:9px 26px; background:#389ce9; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">Retry</button>
+            <div aria-hidden="true" style="width:38px; height:38px; border:3px solid rgba(255,255,255,.18); border-top-color:#389ce9; border-radius:50%; animation:atSrcSpin .9s linear infinite;"></div>
+            <p style="margin:0; color:#fff; font-size:15px; font-weight:600;">Preparing your player…</p>
+            <p style="margin:0; color:#9aa; font-size:13px;">Fetching the original source. The player loads on its own — no verification needed.</p>
+            <p id="at-src-status" style="margin:0; color:#7ea; font-size:12px;"></p>
         </div>
     </div>
+    <style>@keyframes atSrcSpin{to{transform:rotate(360deg)}}</style>
+    <script>
+    // Eager source gate: the player is only loaded once the server has scraped
+    // the original watch source. Poll the readiness probe and reload into the
+    // real player as soon as it is ready (no manual Retry, no dead frame).
+    (function () {
+        var hash = <?= json_encode((string) ($episode['hash'] ?? '')) ?>;
+        if (!hash) return;
+        var tries = 0, MAX = 20, DELAY = 3000;
+        var status = document.getElementById('at-src-status');
+        function poll() {
+            tries++;
+            fetch('/player/ready?hash=' + encodeURIComponent(hash) + '&t=' + Date.now(), { cache: 'no-store' })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d && d.ready) { location.reload(); return; }
+                    if (status) status.textContent = 'Still working… attempt ' + tries;
+                    if (tries < MAX) { setTimeout(poll, DELAY); return; }
+                    if (status) status.innerHTML = 'Taking longer than usual. <a href="javascript:location.reload()" style="color:#389ce9;font-weight:700;">Tap to retry now</a>.';
+                })
+                .catch(function () {
+                    if (status) status.textContent = 'Still working… attempt ' + tries;
+                    if (tries < MAX) setTimeout(poll, DELAY);
+                });
+        }
+        setTimeout(poll, 1000);
+    })();
+    </script>
     <?php else: ?>
     <div class="player-container" id="at-container-v2" style="background:#000 !important; display:block !important; visibility:visible !important; opacity:1 !important;">
         <iframe id="at-player-v2" src="<?= $playerSrc ?>" frameborder="0" allowfullscreen="" style="width:100%; height:100%; display:block !important; visibility:visible !important; opacity:1 !important;"></iframe>
@@ -76,23 +105,8 @@ $recommendations = $episode['recommendations'] ?? [];
     <script>
     (function () {
         var frame = document.getElementById('at-player-v2');
-        // Empty state renders no iframe: nothing to lock or switch.
+        // Empty state renders no iframe: nothing to switch.
         if (!frame) return;
-        // Block extra taps while a switch is already loading (rapid taps
-        // restart the load and nothing ever finishes).
-        var switching = false;
-        var switchTimer = null;
-        function unlock() {
-            switching = false;
-            if (switchTimer) { clearTimeout(switchTimer); switchTimer = null; }
-        }
-        // Safety valve: some frames never fire `load` (blocked/aborted), which
-        // would otherwise swallow every future switch.
-        function armTimeout() {
-            if (switchTimer) clearTimeout(switchTimer);
-            switchTimer = setTimeout(unlock, 10000);
-        }
-        frame.addEventListener('load', unlock);
         // Normalize hrefs so '/x?server=1' vs absolute/relative forms compare equal.
         function sameSrc(url) {
             if (!url) return false;
@@ -106,21 +120,57 @@ $recommendations = $episode['recommendations'] ?? [];
         }
         // Tabs render after this script: bind on DOM ready.
         document.addEventListener('DOMContentLoaded', function () {
+            // Lazy resolution: only the active server's direct player URL is
+            // scraped on page load. Any other tab is resolved on demand (first
+            // click), then the click is replayed so the normal switch runs.
+            //
+            // There is deliberately NO switching lock. A player frame whose
+            // target never fires `load` (CSP frame-ancestors, ORB-blocked ad
+            // frames, cross-origin CDN players) would keep such a lock armed
+            // for its whole timeout and swallow every following tap, so the
+            // next server appeared not to load at all. A click now always
+            // switches immediately; sameSrc() alone stops a redundant reload
+            // of the tab that is already shown.
             Array.prototype.forEach.call(document.querySelectorAll('.srv-btn'), function (btn) {
+                if (btn.getAttribute('data-resolved') === '1') return;
+                function apply(src) {
+                    btn.setAttribute('data-url', src);
+                    // jQuery caches data-* on first read; keep its copy in sync
+                    // so theme.js sets the frame to the resolved original src.
+                    if (window.jQuery) { try { window.jQuery(btn).data('url', src); } catch (err) {} }
+                }
+                function resolve(cb) {
+                    if (btn.classList.contains('at-resolving')) return;
+                    btn.classList.add('at-resolving');
+                    fetch('/player/server-src?url=' + encodeURIComponent(btn.getAttribute('data-url')) + '&t=' + Date.now(), { cache: 'no-store' })
+                        .then(function (r) { return r.json(); })
+                        .catch(function () { return null; })
+                        .then(function (d) {
+                            if (d && d.ok && d.src) apply(d.src);
+                            btn.classList.remove('at-resolving');
+                            // Mark resolved before replaying: the replayed click
+                            // then takes the normal switch path instead of
+                            // looping back through this resolver.
+                            btn.setAttribute('data-resolved', '1');
+                            if (cb) cb();
+                        });
+                }
+                // Tab already being shown (e.g. restored preference): resolve now
+                // so the frame never loads a raw wrapper.
+                if (btn.classList.contains('active')) {
+                    resolve(function () {
+                        var u = btn.getAttribute('data-url');
+                        if (u) frame.src = u;
+                    });
+                    return;
+                }
                 btn.addEventListener('click', function (e) {
-                    // Re-clicking the tab that is already shown never fires
-                    // `load`, so don't take the switching lock for it.
-                    if (btn.classList.contains('active') || sameSrc(btn.getAttribute('data-url'))) {
-                        return;
-                    }
-                    if (switching) {
-                        e.stopImmediatePropagation();
-                        e.preventDefault();
-                        return;
-                    }
-                    switching = true;
-                    armTimeout();
-                });
+                    if (btn.getAttribute('data-resolved') === '1') return;
+                    // Take over this click: resolve first, then replay it.
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    resolve(function () { btn.click(); });
+                }, true); // capture: runs before the switch handler
             });
         });
     })();
@@ -180,10 +230,16 @@ $recommendations = $episode['recommendations'] ?? [];
         <span style="color:#888; font-size:11px; font-weight:900; text-transform:uppercase;">If Current Server Not Working Switch To Another Server</span>
     </div>
 
+    <?php $lazyResolvable = (Config::get('provider') === 'animedekho') && !$isWhPlayer; ?>
     <div class="server-tabs">
         <?php foreach ($episodeServers as $i => $s): ?>
-            <?php $srvUrl = ($isWhPlayer && $whHash !== '') ? ('/player/watchhentai/' . rawurlencode($whHash) . '?server=' . (int) $i) : ($s['source'] ?: $s['url']); ?>
-            <button class="srv-btn<?= ($s['active'] ?? ($i === 0)) ? ' active' : '' ?>" data-url="<?= View::escape($srvUrl) ?>" data-auto="<?= !empty($s['auto']) ? 'true' : 'false' ?>" data-cdn21="<?= !empty($s['cdn21']) ? 'true' : 'false' ?>">
+            <?php
+            $srvUrl = ($isWhPlayer && $whHash !== '') ? ('/player/watchhentai/' . rawurlencode($whHash) . '?server=' . (int) $i) : ($s['source'] ?: $s['url']);
+            // Only animedekho wraps its player behind a wrapper that must be
+            // scraped; other providers already hand back the final URL.
+            $srvResolved = !$lazyResolvable || !empty($s['resolved']);
+            ?>
+            <button class="srv-btn<?= ($s['active'] ?? ($i === 0)) ? ' active' : '' ?>" data-url="<?= View::escape($srvUrl) ?>" data-resolved="<?= $srvResolved ? '1' : '0' ?>" data-auto="<?= !empty($s['auto']) ? 'true' : 'false' ?>" data-cdn21="<?= !empty($s['cdn21']) ? 'true' : 'false' ?>">
                 <?= View::escape($s['name']) ?>
             </button>
         <?php endforeach; ?>
@@ -201,12 +257,12 @@ $recommendations = $episode['recommendations'] ?? [];
         foreach (($episode['download_links'] ?? []) as $dl) {
             if (!is_array($dl) || empty($dl['url'])) continue;
             $downloadServers[] = [
-                'name' => $dl['label'] ?? 'Download',
+                'name' => $dl['label'] ?? ($dl['name'] ?? 'Download'),
                 'url' => $dl['url'],
                 'raw' => '',
                 'lazy' => false,
-                'quality' => '',
-                'language' => '',
+                'quality' => $dl['quality'] ?? '',
+                'language' => $dl['language'] ?? '',
             ];
         }
     }

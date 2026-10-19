@@ -45,7 +45,18 @@ $router->get('/all', [AllController::class, 'index']);
 
 $router->get('/history', [HistoryController::class, 'index']);
 
-$router->get('/skip-ads', [SkipAdsController::class, 'index']);
+// Visitor-facing "Skip Ads" gate. When the gate is disabled (config
+// `skip_ads_gate = false`) visitors are never sent here to verify: the server
+// resolves the upstream ad-gate token itself and serves the original sources,
+// so the page simply bounces back to the catalogue.
+$router->get('/skip-ads', function () {
+    if (Config::get('skip_ads_gate', false)) {
+        (new SkipAdsController())->index();
+        return;
+    }
+    header('Location: /home', true, 302);
+    exit;
+});
 
 // === Diagnostics (hosting triage: versions, extensions, outbound fetch) ===
 $router->get('/diag', function () {
@@ -202,6 +213,54 @@ $router->get('/api/menu/refresh', function() {
     $result = api_menu_refresh($provider);
     header('Content-Type: application/json');
     echo json_encode(['ok' => true, 'menu' => $result]);
+});
+
+// === Eager player-source readiness probe (watch page) ===
+// The watch page polls this while its source is still being scraped. It runs
+// the same (retrying, cached) resolve the page uses and reports whether the
+// original watch source is ready, so the player is only loaded once the src
+// exists — the visitor never sees a dead/refreshing frame and never needs a
+// verification step. Download links are deliberately NOT resolved here.
+$router->get('/player/ready', function() {
+    require_once ROOT_PATH . '/app/Helpers/ApiClient.php';
+    require_once ROOT_PATH . '/app/Helpers/ProviderAdapters.php';
+    header('Content-Type: application/json');
+    $hash = trim((string) ($_GET['hash'] ?? ''));
+    if ($hash === '') {
+        echo json_encode(['ready' => false]);
+        return;
+    }
+    $ep = api_episode_data($hash);
+    $src = is_array($ep) ? trim((string) ($ep['player_source'] ?? '')) : '';
+    if ($src === '' && is_array($ep) && !empty($ep['servers'])) {
+        $first = reset($ep['servers']);
+        $src = is_array($first) ? trim((string) ($first['source'] ?? $first['url'] ?? '')) : '';
+    }
+    echo json_encode(['ready' => $src !== '', 'src' => $src], JSON_UNESCAPED_SLASHES);
+});
+
+// === Lazy player-source resolver (non-active server tabs) ===
+// Only the active server's direct player URL is resolved when the watch page
+// renders. When a visitor switches to another server, this resolves that one
+// wrapper on demand so tab switching still gets the original src without every
+// page load paying to scrape all of them.
+$router->get('/player/server-src', function() {
+    require_once ROOT_PATH . '/app/Helpers/ApiClient.php';
+    require_once ROOT_PATH . '/app/Helpers/ProviderAdapters.php';
+    header('Content-Type: application/json');
+    $url = trim((string) ($_GET['url'] ?? ''));
+    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+        echo json_encode(['ok' => false, 'src' => null]);
+        return;
+    }
+    $src = api_try(function () use ($url) {
+        pa_load_animedekho();
+        require_once ROOT_PATH . '/api/animedekho/app/autoload.php';
+        $http = new \AnimeDekhoApi\Utils\HttpClient();
+        $ad = new \AnimeDekhoApi\Providers\AnimeDekho($http, \AnimeDekhoApi\Core\Config::baseUrl());
+        return $ad->resolveWrapperSrc($url);
+    }, null);
+    echo json_encode(['ok' => $src !== null, 'src' => $src], JSON_UNESCAPED_SLASHES);
 });
 
 // === Live search ajax ===

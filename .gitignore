@@ -43,9 +43,16 @@ storage/tmp/
 api/anikoto/cache/*.cache
 api/animedekho/storage/cache/*.cache
 
+# Test stub scratch files
+api/tests/stub-counter.txt
+api/tests/stub-wrapper-counter.txt
+
 # Auto-generated output
 graphify-out/
 api/graphify-out/
 
 # Test screenshots
 test/screenshots/
+
+# Agent memory
+.openhands/

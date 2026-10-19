@@ -295,6 +295,18 @@ final class AnimeTadkaScraper
         // multi-episode series are not mistaken for single-unit movies.
         $data['seasons'] = $this->backfillPremiumEpisodes($html, $data['seasons'] ?? []);
 
+        // Movies have no season/episode blocks: their player + download rows
+        // live on the /movie/{hash}/ watch page the detail page links to.
+        // Follow that link so movie detail returns real servers/links too.
+        if (empty($data['seasons']) && !empty($data['watch_url'])) {
+            $movie = $this->getMovie((string) $data['watch_url']);
+            if (!empty($movie['servers'])) {
+                $data['servers'] = $movie['servers'];
+                $data['download_links'] = $movie['download_links'] ?? [];
+                $data['player_source'] = $movie['player_source'] ?? ($movie['servers'][0]['source'] ?? null);
+            }
+        }
+
         $this->cacheSet($cacheKey, $data);
         return $data;
     }
@@ -399,7 +411,12 @@ final class AnimeTadkaScraper
 
         // --- Primary: scrape the watch.php page for the real iframe src ---
         try {
-            $html = $this->http->getHtml($watchUrl, ['force_refresh' => $refresh]);
+            // watch.php serves an anti-hotlink troll page without a same-site
+            // Referer, so always send one.
+            $html = $this->http->getHtml($watchUrl, [
+                'force_refresh' => $refresh,
+                'referer' => $this->baseUrl() . '/',
+            ]);
 
             if (!ProxyParser::isCloudflareChallenge($html)) {
                 $source = ProxyParser::extractIframeSource($html);
@@ -438,10 +455,10 @@ final class AnimeTadkaScraper
     private function cdnPatternFallback(string $server, string $hash): ?string
     {
         $patterns = [
-            'thugs'    => 'https://go.gadgetsmania.xyz/embed/',
-            'toonx'    => 'https://as-cdn21.top/video/',
-            'toonplay' => 'https://as-cdn21.top/video/',
-            'hyx'      => 'https://play.abyssplayer.com/',
+            'toonplay' => 'https://ravok.buzz/video/',
+            'vix'      => 'https://gbadosadl.com/e/',
+            'flco'     => 'https://blakiteapi.xyz/embed/',
+            'tox'      => 'https://short.azonahub.biz/embed/',
         ];
 
         if (isset($patterns[$server])) {
@@ -562,7 +579,8 @@ final class AnimeTadkaScraper
         $uniqueUrls = array_values(array_unique($watchUrls));
         $bodies = [];
         try {
-            $bodies = $this->http->getMulti($uniqueUrls);
+            // watch.php requires a same-site Referer (see getWatchSource).
+            $bodies = $this->http->getMulti($uniqueUrls, ['referer' => $this->baseUrl() . '/']);
         } catch (\Throwable $e) {
             $bodies = [];
         }
@@ -794,7 +812,7 @@ final class AnimeTadkaScraper
 
         $url = $this->baseUrl() . '/home/';
         if ($page > 1) {
-            $url = $this->baseUrl() . '/page/' . $page . '/';
+            $url = $this->baseUrl() . '/home/page/' . $page . '/';
         }
 
         $html = $this->http->getHtml($url);
@@ -921,13 +939,16 @@ final class AnimeTadkaScraper
         if (($cached = $this->cacheGet($cacheKey)) !== null) {
             return $cached;
         }
-        $data = $this->parseNavLinks('Languages');
+        $data = $this->getTaxonomies('lang');
+        if ($data === []) {
+            $data = $this->parseNavLinks('Languages');
+        }
         $this->cacheSet($cacheKey, $data);
         return $data;
     }
 
     /**
-     * Genre list from the home page navigation.
+     * Genre list from the /genre/ index (falls back to the home nav).
      *
      * @return array<int, array{name: string, url: string}>
      */
@@ -937,13 +958,16 @@ final class AnimeTadkaScraper
         if (($cached = $this->cacheGet($cacheKey)) !== null) {
             return $cached;
         }
-        $data = $this->parseNavLinks('Genres');
+        $data = $this->getTaxonomies('genre');
+        if ($data === []) {
+            $data = $this->parseNavLinks('Genres');
+        }
         $this->cacheSet($cacheKey, $data);
         return $data;
     }
 
     /**
-     * Studio list from the home page navigation.
+     * Studio list from the /studio/ index (falls back to the home nav).
      *
      * @return array<int, array{name: string, url: string}>
      */
@@ -953,9 +977,58 @@ final class AnimeTadkaScraper
         if (($cached = $this->cacheGet($cacheKey)) !== null) {
             return $cached;
         }
-        $data = $this->parseNavLinks('Studios');
+        $data = $this->getTaxonomies('studio');
+        if ($data === []) {
+            $data = $this->parseNavLinks('Studios');
+        }
         $this->cacheSet($cacheKey, $data);
         return $data;
+    }
+
+    /**
+     * Scrape a taxonomy index page (/lang/, /genre/, /studio/) whose cards
+     * are `a.at-c` anchors: `data-n` holds the slug, `.at-nm` the display name.
+     *
+     * @return array<int, array{name: string, url: string}>
+     */
+    public function getTaxonomies(string $type): array
+    {
+        if (!in_array($type, ['lang', 'genre', 'studio'], true)) {
+            throw new NotFoundException("Unknown taxonomy type: {$type}");
+        }
+
+        $cacheKey = "taxonomy:{$type}";
+        if (($cached = $this->cacheGet($cacheKey)) !== null) {
+            return $cached;
+        }
+
+        $url = $this->baseUrl() . '/' . $type . '/';
+        $html = $this->http->getHtml($url);
+        $parser = new HtmlParser($html, $url);
+
+        $items = [];
+        foreach ($parser->query('//a[contains(@class,"at-c")]') as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = $parser->firstTextWithin($node, ['.//div[contains(@class,"at-nm")]']);
+            if ($name === null || $name === '') {
+                $slug = $node->getAttribute('data-n');
+                $name = $slug !== '' ? ucwords(str_replace('-', ' ', $slug)) : '';
+            }
+            if ($name === '') {
+                continue;
+            }
+
+            $items[] = [
+                'name' => $name,
+                'url' => $parser->normalizeUrl($node->getAttribute('href')),
+            ];
+        }
+
+        $this->cacheSet($cacheKey, $items);
+        return $items;
     }
 
     /**

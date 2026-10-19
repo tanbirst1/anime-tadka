@@ -129,6 +129,19 @@ final class ApiTest extends TestCase
         $this->assertNotEmpty($result['body']['data']['seasons']);
     }
 
+    public function testMovieDetailReturnsServers(): void
+    {
+        // A movie detail slug has no season blocks: the scraper must follow
+        // the page's "WATCH MOVIE NOW" button to the /movie/{hash}/ watch page
+        // so servers and download links are returned (not an empty detail).
+        $result = $this->dispatch('GET', '/api/anime/the-monkey-king-reborn-hindi-dubbed-multi-audio-bluray-full-movie-watch-online-download');
+        $this->assertEquals(200, $result['status']);
+        $data = $result['body']['data'];
+        $this->assertNotEmpty($data['servers']);
+        $this->assertNotEmpty($data['download_links']);
+        $this->assertStringContains('/redirect/download/', (string) $data['download_links'][0]['url']);
+    }
+
     public function testEpisode(): void
     {
         $result = $this->dispatch('GET', '/api/episode/35278977b149');

@@ -27,6 +27,9 @@ return [
     // ── Toonstream ──────────────────────────────────────────────────
     'toonstream'     => 'https://toonstream.us',
 
+    // ── AnimeDekho ──────────────────────────────────────────────────
+    'animedekho'     => 'https://animedekho.tv',
+
     // ── WatchHentai ─────────────────────────────────────────────────
     'watchhentai'    => 'https://watchhentai.net',
 ];

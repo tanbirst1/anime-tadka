@@ -1,0 +1,15 @@
+{
+  "name": "anime-tadka",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AnimeTadka - multi-provider anime streaming front-end.",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:php": "php api/tests/run.php"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

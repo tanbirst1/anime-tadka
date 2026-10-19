@@ -700,7 +700,12 @@ function pa_animedekho_movie(array $data, string $slug): ?array {
                 'name'   => $s['name'] ?? ('Server ' . ($i + 1)),
                 'active' => count($streamServers) === 0,
                 'url'    => $s['src'] ?? ($s['url'] ?? ''),
+                // The direct player URL is only resolved for the active server
+                // up front (see AnimeDekho::withActiveOriginalSrc). The rest are
+                // resolved lazily by the tab-switch probe, so mark whether this
+                // row still holds the raw wrapper.
                 'source' => $source,
+                'resolved' => !empty($s['originalSrc']),
                 'auto'   => false,
                 'cdn21'  => false,
             ];

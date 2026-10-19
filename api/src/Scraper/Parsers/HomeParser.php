@@ -23,15 +23,82 @@ final class HomeParser
      */
     public function parse(): array
     {
+        $series = $this->parseLatest('series');
+        $movies = $this->parseLatest('movies');
+
         return [
             'spotlight' => $this->parseSpotlight(),
             'latest' => [
-                'all' => $this->parseGrid('//div[@id="lat-grid-all"]//div[contains(@class,"anime-card")]'),
-                'series' => $this->parseGrid('//div[@id="lat-grid-series"]//div[contains(@class,"anime-card")]'),
-                'movies' => $this->parseGrid('//div[@id="lat-grid-movies"]//div[contains(@class,"anime-card")]'),
+                'all' => $this->parseLatest('all'),
+                'series' => $series,
+                'movies' => $movies,
             ],
             'languages' => $this->parseLanguages(),
         ];
+    }
+
+    /**
+     * Latest grid for one type.
+     *
+     * The redesign serves two shapes for /home: page 1 carries per-section
+     * blocks (`.at-sl-section[aria-label="Latest Series|Movies|Episodes"]`),
+     * while page 2+ swaps them for tab-targeted grids (`#lat-grid-{all,series,movies}`).
+     * Prefer the explicit grid when present, else fall back to the section.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseLatest(string $type): array
+    {
+        $grid = $this->parseGrid(sprintf(
+            '//div[@id="lat-grid-%s"]//div[contains(@class,"anime-card")]',
+            $type
+        ));
+        if ($grid !== []) {
+            return $grid;
+        }
+
+        if ($type === 'all') {
+            // No "all" section exists on page 1: series + movies is the set.
+            return $this->dedupeCards(array_merge(
+                $this->parseLatest('series'),
+                $this->parseLatest('movies')
+            ));
+        }
+
+        return $this->parseSection($type);
+    }
+
+    /**
+     * Cards inside the page-1 `Latest Series` / `Latest Movies` sections.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseSection(string $type): array
+    {
+        $label = $type === 'movies' ? 'Latest Movies' : 'Latest Series';
+        $xpath = '//section[contains(@class,"at-sl-section")][@aria-label="' . $label . '"]'
+            . '//div[contains(@class,"anime-card")]';
+
+        return $this->parseGrid($xpath);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $cards
+     * @return array<int, array<string, mixed>>
+     */
+    private function dedupeCards(array $cards): array
+    {
+        $seen = [];
+        $out = [];
+        foreach ($cards as $card) {
+            $key = (string) ($card['url'] ?? $card['title'] ?? '');
+            if ($key === '' || isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $out[] = $card;
+        }
+        return $out;
     }
 
     /**

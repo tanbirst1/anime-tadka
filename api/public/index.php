@@ -43,6 +43,18 @@ $router = Bootstrap::router($config);
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $query = $_GET;
 
+// Provider base-URL registry. Served straight from baseurl.php (no scraping)
+// so any deployment — including a mirror of this app — can pull the current
+// provider URLs and re-point itself via BASEURL_ENDPOINT.
+if (in_array($path, ['/api/baseurl', '/api/baseurl/', '/baseurl', '/baseurl/'], true)) {
+    $baseurls = \AnimeTadka\Api\BaseUrlRegistry::all();
+    Response::success(['baseurls' => $baseurls], 200, [
+        'count' => count($baseurls),
+        'source' => 'api/baseurl.php',
+    ])->send();
+    exit;
+}
+
 // Root: API info (standalone "/" and mounted "/api").
 if (in_array($path, ['/', '', '/api', '/api/'], true)) {
     Response::success([

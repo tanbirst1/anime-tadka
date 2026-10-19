@@ -12,21 +12,39 @@ namespace AnimeTadka\Scraper\Parsers;
 final class ProxyParser
 {
     /**
-     * Extract the src of the <iframe id="main-video"> element.
-     * Attribute order is unknown, so both id-first and src-first variants
-     * are tried.
+     * Extract the source of the <iframe id="main-video"> element.
+     *
+     * The player URL now lives in `data-src` (loaded lazily by the site's own
+     * JS); older snapshots used `src`. Attribute order is unknown, so both
+     * id-first and attribute-first variants are tried.
      */
     public static function extractIframeSource(string $html): ?string
     {
-        if (preg_match('/<iframe[^>]*\bid=["\']main-video["\'][^>]*\bsrc=["\']([^"\']+)["\']/i', $html, $m)) {
-            return $m[1];
-        }
+        foreach (['data-src', 'src'] as $attr) {
+            $quoted = preg_quote($attr, '/');
+            if (preg_match('/<iframe[^>]*\bid=["\']main-video["\'][^>]*\b' . $quoted . '=["\']([^"\']+)["\']/i', $html, $m)) {
+                return self::usableSource($m[1]);
+            }
 
-        if (preg_match('/<iframe[^>]*\bsrc=["\']([^"\']+)["\'][^>]*\bid=["\']main-video["\']/i', $html, $m)) {
-            return $m[1];
+            if (preg_match('/<iframe[^>]*\b' . $quoted . '=["\']([^"\']+)["\'][^>]*\bid=["\']main-video["\']/i', $html, $m)) {
+                return self::usableSource($m[1]);
+            }
         }
 
         return null;
+    }
+
+    /**
+     * A placeholder `src` (about:blank / empty / data: URI) is not a real
+     * player URL — the lazy `data-src` holds the actual embed.
+     */
+    private static function usableSource(string $src): ?string
+    {
+        $src = trim($src);
+        if ($src === '' || str_starts_with($src, 'data:') || $src === 'about:blank') {
+            return null;
+        }
+        return $src;
     }
 
     /**

@@ -1742,13 +1742,22 @@ function api_episode_data(string $hash) {
         return $adCached;
     }
 
-    $episode = api_episode_data_live($hash);
-
-    if (is_array($episode) && !empty($episode['servers'])) {
-        $episode['_fetchedAt'] = time();
-        api_cache_set($adCacheKey, $episode, 172800);
-        unset($episode['_fetchedAt']);
-        return $episode;
+    // Eager, blocking resolve: retry a few times before giving up so the page
+    // is rendered with the original watch source already scraped instead of an
+    // empty player. The provider itself also retries the gate, so each attempt
+    // here spans a fresh upstream round-trip.
+    $episode = null;
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $episode = api_episode_data_live($hash);
+        if (is_array($episode) && !empty($episode['servers'])) {
+            $episode['_fetchedAt'] = time();
+            api_cache_set($adCacheKey, $episode, 172800);
+            unset($episode['_fetchedAt']);
+            return $episode;
+        }
+        if ($attempt < 1) {
+            usleep(350000); // 0.35s before the single retry
+        }
     }
 
     // No sources: the upstream gate window (or a transient failure). The
@@ -2242,7 +2251,7 @@ function api_episode_data_live(string $hash) {
                 }
                 if (empty($serversOut)) $serversOut = [['name'=>'Server 1','active'=>true,'url'=>'','source'=>null,'auto'=>false,'cdn21'=>false]];
                 $playerSrc = $serversOut[0]['source'] ?? $serversOut[0]['url'] ?? null;
-                return ['id'=>$origHash,'hash'=>$origHash,'accent'=>'Full Movie','title'=>$aMovie['title'],'animeSlug'=>$hash,'backLabel'=>'Back to Movie','number'=>'Movie','rating'=>'','runtime'=>'','description'=>$aMovie['description']??'','player_url'=>'','player_source'=>$playerSrc,'next_episode_url'=>'','prev_episode_url'=>'','download_links'=>[],'servers'=>$serversOut,'episodes'=>[],'seasons'=>$aMovie['seasons']??[],'recommendations'=>$aMovie['recommendations']??[],'animePoster'=>$poster];
+                return ['id'=>$origHash,'hash'=>$origHash,'accent'=>'Full Movie','title'=>$aMovie['title'],'animeSlug'=>$hash,'backLabel'=>'Back to Movie','number'=>'Movie','rating'=>'','runtime'=>'','description'=>$aMovie['description']??'','player_url'=>'','player_source'=>$playerSrc,'next_episode_url'=>'','prev_episode_url'=>'','download_links'=>$aMovie['download_links']??[],'servers'=>$serversOut,'episodes'=>[],'seasons'=>$aMovie['seasons']??[],'recommendations'=>$aMovie['recommendations']??[],'animePoster'=>$poster];
             }
         }
         return null;

@@ -1,0 +1,156 @@
+/* ==========================================================================
+   Fixed bottom navigation (Anivo-style, our theme)
+   Ties the main site + /hentai section together under one 5-tab bar.
+   Uses this site's tokens (--bg, --accent, glass) so it matches the UI.
+   ========================================================================== */
+.at-bnav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9997;
+    height: 66px;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    background: rgba(11, 13, 20, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.28);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.at-bnav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    color: var(--text-dim, #9ca3af);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    text-decoration: none;
+    position: relative;
+    transition: color 0.25s ease, transform 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.at-bnav-item svg {
+    width: 22px;
+    height: 22px;
+    transition: transform 0.25s ease;
+}
+
+.at-bnav-item:hover,
+.at-bnav-item:active {
+    color: #fff;
+}
+
+.at-bnav-item:hover svg {
+    transform: translateY(-1px);
+}
+
+.at-bnav-item.is-active {
+    color: var(--accent, #9b59b6);
+}
+
+.at-bnav-item.is-active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 42px;
+    height: 3px;
+    border-radius: 0 0 4px 4px;
+    background: var(--accent, #9b59b6);
+    box-shadow: 0 0 8px rgba(155, 89, 182, 0.5);
+}
+
+/* Centre "Home" tab — raised logo button */
+.at-bnav-home {
+    overflow: visible;
+}
+
+.at-bnav-logo {
+    width: 46px;
+    height: 46px;
+    margin-top: -22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(145deg, rgba(30, 24, 38, 0.98), rgba(15, 11, 22, 0.98));
+    border: 2px solid var(--accent, #9b59b6);
+    border-radius: 14px;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.35), 0 0 12px rgba(155, 89, 182, 0.22);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.at-bnav-logo img {
+    max-width: 30px;
+    max-height: 30px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+.at-bnav-home:hover .at-bnav-logo,
+.at-bnav-home:active .at-bnav-logo {
+    transform: scale(1.06);
+}
+
+.at-bnav-home.is-active::after {
+    display: none;
+}
+
+/* Keep page content + floating widgets clear of the bar */
+body.at-has-bnav {
+    padding-bottom: 66px;
+}
+
+body.at-has-bnav .sch-float-anchor {
+    bottom: 156px;
+}
+
+body.at-has-bnav .tg-float-anchor {
+    bottom: 84px;
+}
+
+body.at-has-bnav #at-floating-stack {
+    bottom: 82px;
+}
+
+@media (max-width: 500px) {
+    .at-bnav {
+        height: 60px;
+    }
+    body.at-has-bnav {
+        padding-bottom: 60px;
+    }
+    .at-bnav-item {
+        font-size: 9px;
+    }
+    .at-bnav-item svg {
+        width: 20px;
+        height: 20px;
+    }
+    .at-bnav-logo {
+        width: 42px;
+        height: 42px;
+        margin-top: -20px;
+    }
+    body.at-has-bnav .sch-float-anchor {
+        bottom: 148px;
+    }
+    body.at-has-bnav .tg-float-anchor {
+        bottom: 78px;
+    }
+    body.at-has-bnav #at-floating-stack {
+        bottom: 74px;
+    }
+}

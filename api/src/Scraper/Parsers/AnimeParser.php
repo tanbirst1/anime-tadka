@@ -43,7 +43,32 @@ final class AnimeParser
             'latest_episode' => $this->parseLatestEpisode(),
             'external_ids' => $this->parseExternalIds(),
             'seasons' => $this->parseSeasons(),
+            // Movies ship a "WATCH MOVIE NOW" button that links to the real
+            // watch page (/movie/{hash}/). Series use the season/episode lists
+            // instead, so this stays null there.
+            'watch_url' => $this->parseWatchUrl(),
         ];
+    }
+
+    /**
+     * Resolve the /movie/{hash}/ watch page from the detail page's watch
+     * button (movies have no season blocks to read episode URLs from).
+     */
+    private function parseWatchUrl(): ?string
+    {
+        $href = $this->html->firstAttr([
+            '//a[contains(@class,"ultra-watch-btn")]/@href',
+            '//div[contains(@class,"movie-watch-area")]//a/@href',
+        ], 'href');
+
+        if ($href === null || $href === '' || $href === '#') {
+            return null;
+        }
+
+        $url = $this->html->normalizeUrl($href);
+
+        // Only a watch page is useful here; ignore share/other anchors.
+        return str_contains($url, '/movie/') ? $url : null;
     }
 
     private function parseBanner(): ?string

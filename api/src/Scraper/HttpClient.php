@@ -346,6 +346,13 @@ class HttpClient
             ],
         ];
 
+        // Some endpoints (e.g. animetadka's watch.php) answer with an
+        // anti-hotlink troll page unless a same-site Referer is present.
+        $referer = (string) ($options['referer'] ?? '');
+        if ($referer !== '') {
+            $curlOptions[CURLOPT_REFERER] = $referer;
+        }
+
         if (defined('CURL_HTTP_VERSION_2TLS')) {
             $curlOptions[CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_2TLS;
         }
@@ -431,6 +438,11 @@ class HttpClient
             'Connection: close',
             'Cache-Control: no-cache',
         ];
+
+        $referer = (string) ($options['referer'] ?? '');
+        if ($referer !== '') {
+            $headerLines[] = 'Referer: ' . $referer;
+        }
 
         $httpOptions = [
             'method' => strtoupper($method),

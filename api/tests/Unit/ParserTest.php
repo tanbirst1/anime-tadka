@@ -294,6 +294,23 @@ final class ParserTest extends TestCase
 
     // --------------------------------------------------------------- Movie
 
+    public function testAnimeMovieDetailExposesWatchUrl(): void
+    {
+        $data = (new AnimeParser($this->parser('movie-detail.html')))->parse();
+
+        // A movie detail page has no season blocks; its player lives behind
+        // the "WATCH MOVIE NOW" button, which must be surfaced as watch_url.
+        $this->assertEquals('https://animetadka.com/movie/414690d3ea71/', $data['watch_url']);
+        $this->assertEquals([], $data['seasons']);
+    }
+
+    public function testAnimeSeriesHasNoWatchUrl(): void
+    {
+        // Series detail pages list episodes, so watch_url stays null.
+        $data = (new AnimeParser($this->parser('anime.html')))->parse();
+        $this->assertNull($data['watch_url']);
+    }
+
     public function testMoviePage(): void
     {
         $data = (new EpisodeParser($this->parser('movie.html')))->parse();

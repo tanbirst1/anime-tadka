@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace AnimeDekhoApi\Providers;
 
 use DOMXPath;
+use AnimeDekhoApi\Core\Config;
 use AnimeDekhoApi\Core\ScrapeException;
 use AnimeDekhoApi\Utils\Arr;
+use AnimeDekhoApi\Utils\Cache;
 use AnimeDekhoApi\Utils\Dom;
 use AnimeDekhoApi\Utils\HttpClient;
 use AnimeDekhoApi\Utils\Url;
@@ -280,7 +282,7 @@ final class AnimeDekho
             'batchDownloadUrl' => null,
             'totalEpisodes' => 1,
             'episodes' => [],
-            'servers' => $this->withOriginalSrcs($filtered),
+            'servers' => $this->withActiveOriginalSrc($filtered),
         ];
     }
 
@@ -315,7 +317,7 @@ final class AnimeDekho
         $label = $episodeData['label'] ?? null;
         $name = $episodeData['name'] ?? '';
 
-        $servers = $this->withOriginalSrcs($this->filterServers($this->fetchServers($seriesId, $episodeId), $server));
+        $servers = $this->withActiveOriginalSrc($this->filterServers($this->fetchServers($seriesId, $episodeId), $server));
 
         return [
             'slug' => $slug,
@@ -336,10 +338,17 @@ final class AnimeDekho
     // ------------------------------------------------------------------
 
     /**
-     * Expose the site's ad-gate verify links for an episode (/epi/) or movie
-     * (/movie-hindi/) page. Kept for compatibility: the redesigned site no
-     * longer gates playback, so `gated` is normally false and the servers are
-     * returned directly.
+     * Ad-gate token flow for an episode (/epi/) or movie (/movie-hindi/) page.
+     *
+     * The site arms a one-per-24h, per-IP "skip the ad" wall: after an episode
+     * page is viewed, REST /watch answers {gated:true, gate:"…/?dgt_gate=1&…"}
+     * with no sources until the gate is solved. Each gate page carries skip
+     * forms whose `shortlink` input is the final `?dgt_verify=…` token; visiting
+     * that token plants the `dgt_verified` cookie for ~24h.
+     *
+     * This method exposes those verify links AND activates one so the returned
+     * `servers` are already unlocked — i.e. it "makes the token" from the gate
+     * URL, so no ad prompt ever reaches a visitor.
      */
     public function token(string $slug, string $kind = 'episode'): array
     {
@@ -350,41 +359,80 @@ final class AnimeDekho
             : $this->base . '/epi/' . rawurlencode($slug) . '/';
 
         $html = $this->http->get($url);
-        $gated = str_contains($html, '24hr/verify.php');
+        $xp = Dom::xp(Dom::load($html));
+        $seriesId = (int) (Dom::attr(Dom::one($xp, "//*[@id='dgt-watch']"), 'data-series')
+            ?? Dom::attr(Dom::one($xp, "//*[@id='dgt-title']"), 'data-series')
+            ?? '0');
+        $episodeId = (int) (Dom::attr(Dom::one($xp, "//*[@id='dgt-watch']"), 'data-term') ?? '0');
+
+        // A gated REST reply carries the exact gate URL we must solve.
+        $raw = $seriesId > 0
+            ? $this->http->postJson(
+                $this->base . '/wp-json/dgt/v1/watch',
+                ['post_id' => $seriesId, 'episode_id' => $episodeId]
+            )
+            : null;
+        $gated = is_array($raw) && !empty($raw['gated']);
+        $gateUrl = $gated ? (string) ($raw['gate'] ?? '') : '';
 
         $verifyUrls = [];
-        if (preg_match_all('#<form\b[^>]*action="([^"]*)"[^>]*>(.*?)</form>#s', $html, $forms, PREG_SET_ORDER)) {
-            foreach ($forms as $form) {
-                if (preg_match('#id="shortlink[^"]*"[^>]*value="([^"]+)"#', $form[2], $m)) {
-                    $verifyUrls[] = [
-                        'label' => $this->skipLabel($form[2]),
-                        'action' => html_entity_decode($form[1], ENT_QUOTES | ENT_HTML5),
-                        'verifyUrl' => html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5),
-                    ];
-                }
+        if ($gateUrl !== '') {
+            try {
+                $verifyUrls = $this->parseGateForms($this->http->get($gateUrl));
+            } catch (ScrapeException $e) {
+                $verifyUrls = [];
             }
         }
 
-        $servers = [];
-        if (!$gated) {
-            $xp = Dom::xp(Dom::load($html));
-            $seriesId = (int) (Dom::attr(Dom::one($xp, "//*[@id='dgt-watch']"), 'data-series')
-                ?? Dom::attr(Dom::one($xp, "//*[@id='dgt-title']"), 'data-series')
-                ?? '0');
-            $episodeId = (int) (Dom::attr(Dom::one($xp, "//*[@id='dgt-watch']"), 'data-term') ?? '0');
-            $servers = $this->withOriginalSrcs($this->fetchServers($seriesId, $episodeId));
+        // Activate the first verify link (the direct ?dgt_verify=… token, which
+        // bypasses the ad shortener) so the cookie is planted, then read the
+        // now-unlocked sources. The token is honoured only after its dwell
+        // window, so activateVerifyToken() waits it out before the request.
+        $activated = null;
+        if ($verifyUrls !== []) {
+            $activated = (string) $verifyUrls[0]['verifyUrl'];
+            $this->activateVerifyToken($activated);
         }
+        $servers = $seriesId > 0 ? $this->withOriginalSrcs($this->fetchServers($seriesId, $episodeId)) : [];
 
         return [
             'slug' => $slug,
             'kind' => $kind,
             'pageUrl' => $url,
+            'gateUrl' => $gateUrl !== '' ? $gateUrl : null,
             'gated' => $gated,
-            'cookieUnlocked' => !$gated,
-            'activatedVerifyUrl' => null,
+            'cookieUnlocked' => $servers !== [],
+            'activatedVerifyUrl' => $activated,
             'verifyUrls' => $verifyUrls,
             'servers' => $servers,
         ];
+    }
+
+    /**
+     * Skip forms on an ad-gate page. Each <form action="/skip/*.php"> carries a
+     * `postlink` (episode URL) and a `shortlink` (the direct `?dgt_verify=…`
+     * token). Returns one entry per form, in page order.
+     *
+     * @return array<int, array{label: string, action: string, verifyUrl: string}>
+     */
+    private function parseGateForms(string $html): array
+    {
+        $out = [];
+        if (preg_match_all('#<form\b[^>]*(?:class="[^"]*dgt-ch__form[^"]*"[^>]*)?action="([^"]*)"[^>]*>(.*?)</form>#is', $html, $forms, PREG_SET_ORDER)) {
+            foreach ($forms as $form) {
+                $inner = $form[2];
+                if (!preg_match('#<input\b[^>]*name="shortlink"[^>]*value="([^"]+)"#i', $inner, $m)
+                    && !preg_match('#<input\b[^>]*value="([^"]*dgt_verify=[^"]*)"[^>]*name="shortlink"#i', $inner, $m)) {
+                    continue;
+                }
+                $out[] = [
+                    'label' => $this->skipLabel($inner),
+                    'action' => html_entity_decode($form[1], ENT_QUOTES | ENT_HTML5),
+                    'verifyUrl' => html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5),
+                ];
+            }
+        }
+        return $out;
     }
 
     /** Best-effort label from a skip form's button text ("Skip AD [v1] …"). */
@@ -593,13 +641,147 @@ final class AnimeDekho
         return $servers;
     }
 
-    /** @return array<string, mixed>|null raw /watch REST reply */
+    /**
+     * Raw /watch REST reply, transparently passing the ad gate.
+     *
+     * When the site arms its per-IP "skip the ad" wall, /watch answers
+     * {gated:true, gate:"…/?dgt_gate=1&…"} with no sources. We fetch that gate
+     * page, pull the skip form's `shortlink` (the direct `?dgt_verify=…` token),
+     * visit it to plant the `dgt_verified` cookie, then retry — so playback
+     * keeps working and no ad prompt is ever surfaced to a visitor.
+     *
+     * @return array<string, mixed>|null
+     */
     private function watch(int $postId, int $episodeId): ?array
     {
-        return $this->http->postJson(
-            $this->base . '/wp-json/dgt/v1/watch',
-            ['post_id' => $postId, 'episode_id' => $episodeId]
-        );
+        $payload = ['post_id' => $postId, 'episode_id' => $episodeId];
+        $url = $this->base . '/wp-json/dgt/v1/watch';
+
+        // Eager resolve: keep trying until the player sources actually come
+        // back. The site arms a one-per-24h, per-IP "skip the ad" wall that
+        // may answer gated (or, transiently, source-less) on the first call.
+        // We solve the gate and retry a few times so a visitor's page is only
+        // ever rendered once the original watch source is available.
+        $data = null;
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $data = $this->http->postJson($url, $payload);
+
+            if (is_array($data) && empty($data['gated'])) {
+                if (!empty($data['sources'])) {
+                    return $data; // resolved
+                }
+                // Not gated but source-less: transient — fall through and retry.
+            } elseif (is_array($data) && !empty($data['gated'])) {
+                // Fetching the gate URL either plants the verify cookie itself
+                // (already-verified requests) or yields the skip form whose
+                // shortlink token we then activate. Then retry immediately.
+                $this->solveGate((string) ($data['gate'] ?? ''));
+                $retry = $this->http->postJson($url, $payload);
+                if (is_array($retry) && !empty($retry['sources'])) {
+                    return $retry;
+                }
+                if (is_array($retry) && empty($retry['gated'])) {
+                    $data = $retry;
+                }
+            }
+
+            if ($attempt < 2) {
+                usleep(400000 * ($attempt + 1)); // 0.4s, then 0.8s
+            }
+        }
+
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * Solve the ad gate: fetch the gate page, take a skip form's `shortlink`
+     * token and visit it so the site plants its `dgt_verified` cookie (~24h).
+     * Returns true when a verify token was activated.
+     */
+    private function solveGate(string $gateUrl): bool
+    {
+        if ($gateUrl === '') {
+            return false;
+        }
+        try {
+            $forms = $this->parseGateForms($this->http->get($gateUrl));
+        } catch (ScrapeException $e) {
+            return false;
+        }
+        if ($forms === []) {
+            // No forms: the IP already holds a valid verify cookie.
+            return false;
+        }
+        return $this->activateVerifyToken((string) $forms[0]['verifyUrl']);
+    }
+
+    /**
+     * Visit a gate verify token so the site plants its `dgt_verified` cookie.
+     *
+     * The token is minted with an `i` (issued-at) epoch; the site rejects a
+     * verify request that lands too soon after it (403 "That was too fast")
+     * and issues no cookie. We therefore dwell past the window before the
+     * request. Waiting a fixed dwell *after fetching the token* is enough —
+     * the token was minted at or before that fetch, so the elapsed age is at
+     * least the dwell regardless of clock skew — but we also honour a future
+     * `i` so a token minted ahead of us is never hit early.
+     */
+    private function activateVerifyToken(string $verifyUrl): bool
+    {
+        if ($verifyUrl === '') {
+            return false;
+        }
+        $dwell = Config::gateDwell();
+        $wait = $dwell;
+        $i = $this->tokenIssuedAt($verifyUrl);
+        if ($i > 0) {
+            $wait = max($dwell, $i + $dwell - time());
+        }
+        $this->dwell($wait);
+        try {
+            // 302 → episode page; sets dgt_verified (HttpClient follows it).
+            $this->http->get($verifyUrl);
+        } catch (ScrapeException $e) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Wait $seconds wall-clock seconds.
+     *
+     * A single sleep() cannot be trusted on shared hosting: some free hosts
+     * (InfinityFree) clamp one sleep() call to ~3s, so sleep(10) returns after
+     * 3s. That silently collapses the gate dwell, the verify token arrives too
+     * early, and every episode renders zero servers. usleep() is not clamped,
+     * so wait in short usleep() slices against a monotonic deadline — correct
+     * on those hosts and harmless everywhere else.
+     */
+    private function dwell(int $seconds): void
+    {
+        if ($seconds <= 0) {
+            return;
+        }
+        $deadline = microtime(true) + $seconds;
+        do {
+            $remaining = $deadline - microtime(true);
+            if ($remaining <= 0) {
+                break;
+            }
+            // 250ms slices: usleep(≤3s) is honoured on every host we target.
+            usleep((int) round(min($remaining, 0.25) * 1_000_000));
+        } while (microtime(true) < $deadline);
+    }
+
+    /** Epoch (seconds) the gate verify token was minted, from its `i` param. */
+    private function tokenIssuedAt(string $verifyUrl): int
+    {
+        $q = (string) parse_url($verifyUrl, PHP_URL_QUERY);
+        if ($q === '') {
+            return 0;
+        }
+        parse_str($q, $params);
+        return isset($params['i']) && is_numeric($params['i']) ? (int) $params['i'] : 0;
     }
 
     // ------------------------------------------------------------------
@@ -812,6 +994,83 @@ final class AnimeDekho
     // ------------------------------------------------------------------
     // Source resolution
     // ------------------------------------------------------------------
+
+    /**
+     * Eagerly resolve the direct player URL for the one server that will
+     * actually play (the active row, else the first), and leave the rest
+     * untouched. Resolving every wrapper costs tens of seconds and does not
+     * fit inside a page request, so the other servers are resolved lazily by
+     * the tab-switch probe (/player/server-src) once the page has rendered.
+     *
+     * @param array<int, array<string, mixed>> $servers
+     * @return array<int, array<string, mixed>>
+     */
+    private function withActiveOriginalSrc(array $servers): array
+    {
+        if ($servers === []) {
+            return $servers;
+        }
+        $activeIdx = 0;
+        foreach ($servers as $i => $s) {
+            if (!empty($s['isActive'])) {
+                $activeIdx = $i;
+                break;
+            }
+        }
+        if (!isset($servers[$activeIdx])) {
+            return $servers;
+        }
+        $resolved = $this->withOriginalSrcs([$servers[$activeIdx]]);
+        if (isset($resolved[0])) {
+            $servers[$activeIdx] = $resolved[0];
+        }
+        return $servers;
+    }
+
+    /**
+     * Resolve a single wrapper URL to its direct player URL. Public so the
+     * lazy tab-switch probe can resolve a non-active server on demand without
+     * paying for it on every page load.
+     */
+    public function resolveWrapperSrc(string $src): ?string
+    {
+        if ($src === '' || !$this->isWrapperSrc($src)) {
+            return null;
+        }
+        // Persistent cache: a wrapper maps to the same player URL for hours,
+        // so a tab-switch probe should not re-walk the chain every time. Only
+        // successful resolutions are stored (a null result may be transient).
+        $cache = null;
+        if (Config::cacheEnabled()) {
+            try {
+                $cache = new Cache(Config::CACHE_DIR);
+                $hit = $cache->get('wrapper_src', $src);
+                if (is_array($hit) && isset($hit['src']) && is_string($hit['src']) && $hit['src'] !== '') {
+                    return $hit['src'];
+                }
+            } catch (\Throwable $e) {
+                $cache = null;
+            }
+        }
+        try {
+            $jsonCache = [];
+            $bodies = $this->fetchWrappers([$src], 2, $jsonCache);
+            if (!isset($bodies[$src]) || $bodies[$src] === null) {
+                return null;
+            }
+            $resolved = $this->resolveSrc($src, $bodies, $jsonCache, 4);
+        } catch (ScrapeException $e) {
+            return null;
+        }
+        if ($resolved !== null && $resolved !== '' && $cache !== null) {
+            try {
+                $cache->set('wrapper_src', $src, ['src' => $resolved]);
+            } catch (\Throwable $e) {
+                // Cache write is best-effort; never fail the resolve.
+            }
+        }
+        return $resolved;
+    }
 
     /**
      * Resolve each server's direct player URL. The site hides the real player

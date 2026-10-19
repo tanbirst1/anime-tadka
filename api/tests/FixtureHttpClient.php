@@ -94,6 +94,11 @@ final class FixtureHttpClient extends HttpClient
         if (str_contains($url, '/movie/')) {
             return $dir . '/movie.html';
         }
+        // Movie detail pages (bare /{slug}/) carry the "WATCH MOVIE NOW"
+        // button the scraper follows to the /movie/{hash}/ watch page.
+        if (str_contains($url, '-full-movie-')) {
+            return $dir . '/movie-detail.html';
+        }
         if (str_contains($url, '/type/series')) {
             return $dir . '/category-series.html';
         }
